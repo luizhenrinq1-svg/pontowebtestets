@@ -48,7 +48,7 @@
       // ⚠️ 1. COLOQUE A URL DO APPS SCRIPT AQUI
       const API_URL = "https://script.google.com/macros/s/AKfycbyhvzFHFiUj0sSNOzD8wQft9y_yU8OuqN3SSUCfuiwYyzD8xx5JeEMSd9jjOMq-OpXTig/exec"; 
       
-      // ⚠️ 2. DADOS DO FIREBASE (ATUALIZADOS)
+      // ⚠️ 2. DADOS DO FIREBASE (Configurados)
       const firebaseConfig = {
         apiKey: "AIzaSyCn89LRlH1lksZ811--jb2jlB2iZS5NH1s",
         authDomain: "pontoweb-dc8dd.firebaseapp.com",
@@ -62,7 +62,6 @@
       // Inicializa Firebase se configurado
       let messaging = null;
       try {
-        // Verifica se as chaves foram preenchidas (não são mais placeholders)
         if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "SUA_API_KEY") {
           firebase.initializeApp(firebaseConfig);
           messaging = firebase.messaging();
@@ -265,11 +264,11 @@
             if (permission === 'granted') {
               console.log('Permissão concedida.');
               
-              // FIX: Usa o Service Worker atual (sw.js) em vez de procurar o padrão (firebase-messaging-sw.js)
+              // FIX CRÍTICO: Usa o Service Worker atual (sw.js) em vez de procurar o padrão (firebase-messaging-sw.js)
               navigator.serviceWorker.ready.then((registration) => {
-                  // ⚠️⚠️ SUBSTITUA 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0' PELA CHAVE GERADA NO CONSOLE DO FIREBASE (Aba Cloud Messaging > Web Push Certificates)
+                  // Token fornecido por você
                   messaging.getToken({ 
-                    vapidKey: 'SUA_VAPID_KEY_AQUI',
+                    vapidKey: 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0',
                     serviceWorkerRegistration: registration 
                   }).then((currentToken) => {
                     if (currentToken) {
@@ -277,7 +276,7 @@
                       // Envia para o backend para salvar
                       if (params && params.id) {
                          google.script.run.salvarFCMToken({ id: params.id, token: params.token, fcmToken: currentToken });
-                         alert("Notificações Push ativadas com sucesso!");
+                         alert("✅ Notificações Push ativadas com sucesso! Você pode fechar o app agora.");
                       }
                     } else {
                       console.log('Nenhum token ID disponível.');
@@ -288,7 +287,7 @@
                   });
               });
             } else {
-              alert('Permissão de notificação negada.');
+              alert('Permissão de notificação negada. Ative nas configurações do navegador.');
             }
           });
         };
