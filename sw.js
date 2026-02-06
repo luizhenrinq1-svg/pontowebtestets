@@ -1,7 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'pontoweb-v5-final';
+const CACHE_NAME = 'pontoweb-v6-offline-master';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -28,34 +28,33 @@ try {
     const messaging = firebase.messaging();
 
     messaging.onBackgroundMessage((payload) => {
-      console.log('Push recebido:', payload);
-      
-      // FIX: Lê de 'data' (novo padrão) ou 'notification' (fallback)
       const data = payload.data || payload.notification;
-      
       const notificationTitle = data?.title || 'PontoWeb';
       const notificationOptions = {
         body: data?.body || 'Aviso de horário',
         icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png',
-        
-        // Vibração Forte: [Vibra 3s, Pausa 1s, Vibra 3s...]
         vibrate: [3000, 1000, 3000, 1000, 3000], 
         renotify: true,           
         tag: 'pontoweb-alert',    
         requireInteraction: true, 
         silent: false             
       };
-
       self.registration.showNotification(notificationTitle, notificationOptions);
     });
   }
-} catch(e) { console.log('SW Firebase Init Error:', e); }
+} catch(e) { console.log('SW Init Error:', e); }
 
+// INSTALAÇÃO: Cacheia os arquivos essenciais
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE).catch(()=>{})));
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(ASSETS_TO_CACHE).catch(err => console.warn('Cache parcial:', err));
+    })
+  );
 });
 
+// ATIVAÇÃO: Limpa caches antigos
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     Promise.all([
@@ -69,11 +68,18 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// FETCH: Estratégia Cache-First com Fallback para Rede
 self.addEventListener('fetch', (event) => {
+  // Ignora requisições POST (envio de dados) - deixa o app lidar
   if (event.request.method !== 'GET') return;
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      return cachedResponse || fetch(event.request).catch(() => {});
+      // Se tem no cache, retorna. Se não, tenta buscar na rede.
+      return cachedResponse || fetch(event.request).catch(() => {
+        // Se falhar a rede e não tiver no cache (ex: offline total tentando acessar algo novo)
+        return null; 
+      });
     })
   );
 });
