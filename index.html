@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PontoWeb Unespar</title>
     
-    <!-- Configurações PWA -->
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#166534">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -13,30 +12,23 @@
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2983/2983818.png">
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/2983/2983818.png">
 
-    <!-- Bibliotecas React e Tailwind -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- FIREBASE -->
+    <!-- FIREBASE (Para Notificações) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js"></script>
 
     <style>
-      body { background-color: #f0fdf4; color: #166534; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+      body { background-color: #f0fdf4; color: #166534; font-family: sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; }
       .spinner { border: 4px solid #dcfce7; width: 40px; height: 40px; border-radius: 50%; border-left-color: #16a34a; animation: spin 1s linear infinite; }
       @keyframes spin { 100% { transform: rotate(360deg); } }
-      .slide-down { animation: slideDown 0.5s ease-out forwards; }
-      @keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+      .fade-in { animation: fadeIn 0.3s ease-in; }
+      @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
       .bell-shake { animation: shake 2s infinite; transform-origin: top center; }
       @keyframes shake { 0% { transform: rotate(0deg); } 10% { transform: rotate(10deg); } 20% { transform: rotate(-10deg); } 30% { transform: rotate(6deg); } 40% { transform: rotate(-6deg); } 50% { transform: rotate(0deg); } 100% { transform: rotate(0deg); } }
-      .pulse-dot { animation: pulse-green 2s infinite; }
-      @keyframes pulse-green { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(74, 222, 128, 0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); } }
-      .fade-in { animation: fadeIn 0.5s ease-out; }
-      @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-      .bounce-arrow { animation: bounce 2s infinite; }
-      @keyframes bounce { 0%, 20%, 50%, 80%, 100% {transform: translateY(0);} 40% {transform: translateY(-10px);} 60% {transform: translateY(-5px);} }
     </style>
   </head>
   <body>
@@ -44,9 +36,10 @@
     <script type="text/babel">
       const { useState, useEffect, useRef } = React;
 
-      // ======================================================================
-      // CONFIGURAÇÃO GERAL
+      // === CONFIGURAÇÕES ===
       const API_URL = "https://script.google.com/macros/s/AKfycbyhvzFHFiUj0sSNOzD8wQft9y_yU8OuqN3SSUCfuiwYyzD8xx5JeEMSd9jjOMq-OpXTig/exec"; 
+      const CACHE_KEY_DATA = 'pontoweb_data_v1';
+      const CACHE_KEY_AUTH = 'pontoweb_auth_v1';
       
       const firebaseConfig = {
         apiKey: "AIzaSyCn89LRlH1lksZ811--jb2jlB2iZS5NH1s",
@@ -56,13 +49,7 @@
         messagingSenderId: "465750633035",
         appId: "1:465750633035:web:282efd14b807e2a3823bce"
       };
-      
       const VAPID_KEY = 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0';
-      
-      // CHAVES DE CACHE LOCAL (Para carregamento instantâneo)
-      const CACHE_KEY_USER = 'pontoweb_user_data';
-      const CACHE_KEY_AUTH = 'ponto_auth_data';
-      // ======================================================================
 
       // Inicializa Firebase
       let messaging = null;
@@ -71,15 +58,11 @@
           firebase.initializeApp(firebaseConfig);
           messaging = firebase.messaging();
         }
-      } catch (e) { console.log("Firebase erro init:", e); }
+      } catch (e) {}
 
+      // Bridge de Comunicação
       const ExternalBridge = {
         request: async (action, payload = {}) => {
-          if (!API_URL.startsWith('http')) {
-            alert("ERRO DE CONFIGURAÇÃO: URL da API inválida.");
-            throw new Error("URL não configurada");
-          }
-          // CORREÇÃO DE CONEXÃO: Adicionado 'redirect' e 'headers' específicos para evitar erros de CORS no Google Apps Script
           const response = await fetch(API_URL, {
             method: 'POST',
             redirect: "follow",
@@ -92,19 +75,18 @@
         }
       };
 
+      // Mock Google (compatibilidade)
       if (typeof google === 'undefined') {
-        const createRunner = (success, failure) => {
-          return {
-            withSuccessHandler: (fn) => createRunner(fn, failure),
-            withFailureHandler: (fn) => createRunner(success, fn),
-            getBolsistaInfo: (id, token) => ExternalBridge.request('getBolsistaInfo', { id, token }).then(success).catch(failure || console.error),
-            registrarPonto: (payload) => ExternalBridge.request('registrarPonto', payload).then(success).catch(failure || console.error),
-            salvarFCMToken: (payload) => ExternalBridge.request('salvarToken', payload).then(success).catch(failure || console.error),
-            salvarConfiguracao: (payload) => ExternalBridge.request('salvarConfiguracao', payload).then(success).catch(failure || console.error),
-            testarPush: (payload) => ExternalBridge.request('testarPush', payload).then(success).catch(failure || console.error)
-          };
-        };
-        window.google = { script: { run: createRunner() } };
+        window.google = { script: { run: {
+            withSuccessHandler: (cb) => ({
+                withFailureHandler: (errCb) => ({
+                    getBolsistaInfo: (id, token) => ExternalBridge.request('getBolsistaInfo', { id, token }).then(cb).catch(errCb),
+                    registrarPonto: (p) => ExternalBridge.request('registrarPonto', p).then(cb).catch(errCb),
+                    salvarFCMToken: (p) => ExternalBridge.request('salvarToken', p).then(cb).catch(errCb),
+                    salvarConfiguracao: (p) => ExternalBridge.request('salvarConfiguracao', p).then(cb).catch(errCb)
+                })
+            })
+        }}};
       }
 
       const Icon = {
@@ -112,463 +94,319 @@
         Camera: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
         Check: () => <svg className="w-16 h-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
         Lock: () => <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>,
-        Bell: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>,
-        Alert: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>,
-        Zap: () => <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>,
-        Link: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>,
-        Download: () => <svg className="w-6 h-6 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>,
-        LogOut: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>,
-        Cloud: () => <svg className="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>,
-        Info: () => <svg className="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
-        Settings: () => <svg className="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Bell: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
       };
 
-      // --- COMPONENTE: GUIA DE INSTALAÇÃO ---
-      function InstallGuide({ promptEvent }) {
-        const [deviceType, setDeviceType] = useState('desktop');
-        useEffect(() => {
-          const ua = navigator.userAgent.toLowerCase();
-          if (/iphone|ipad|ipod/.test(ua)) setDeviceType('ios');
-          else if (/android/.test(ua)) setDeviceType('android');
-          else setDeviceType('desktop');
-        }, []);
-
-        const installAndroid = () => {
-          if (promptEvent) promptEvent.prompt();
-          else alert("Toque no menu do navegador (três pontinhos) e selecione 'Adicionar à tela inicial'.");
-        };
-
-        return (
-          <div className="fixed inset-0 bg-gray-50 z-50 flex flex-col items-center justify-center p-6 text-center fade-in">
-            <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-sm border border-gray-100">
-              <img src="https://cdn-icons-png.flaticon.com/512/2983/2983818.png" className="w-20 h-20 mx-auto mb-6 rounded-2xl shadow-md" />
-              <h1 className="text-2xl font-bold text-gray-800 mb-2">Instale o App</h1>
-              <p className="text-gray-500 mb-6 leading-relaxed text-sm">Para garantir o funcionamento offline e notificações, é necessário instalar este aplicativo.</p>
-              {deviceType === 'ios' && (
-                <div className="space-y-4 text-left bg-gray-50 p-4 rounded-2xl text-sm">
-                  <div className="flex items-start gap-3"><span className="bg-blue-100 text-blue-600 font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0">1</span><p>Toque no botão <strong>Compartilhar</strong> <span className="text-blue-500 text-lg">⎋</span> abaixo.</p></div>
-                  <div className="flex items-start gap-3"><span className="bg-blue-100 text-blue-600 font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0">2</span><p>Selecione <strong>Adicionar à Tela de Início</strong>.</p></div>
-                  <div className="mt-4 text-center text-blue-500 text-xs font-bold bounce-arrow">👇 Use a barra do navegador</div>
-                </div>
-              )}
-              {deviceType === 'android' && (
-                <button onClick={installAndroid} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center gap-2">
-                  <Icon.Download /> Instalar Agora
-                </button>
-              )}
-              {deviceType === 'desktop' && (
-                <div className="text-sm text-gray-600 bg-gray-50 p-4 rounded-xl border">
-                  <p>Olhe para a barra de endereços do Chrome.</p>
-                  <p className="mt-2">Clique no ícone de <strong>Instalar</strong> (Computador com seta) no canto direito.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      }
-
-      // --- APP PRINCIPAL ---
-      function TimeClock({ promptEvent }) {
+      function TimeClock() {
         const [params, setParams] = useState(null);
         const [bolsistaName, setBolsistaName] = useState('');
         const [lastAction, setLastAction] = useState(null);
         const [entryTime, setEntryTime] = useState(null);
         const [exitTime, setExitTime] = useState(null);
-        const [targetHours, setTargetHours] = useState(4);
         const [location, setLocation] = useState(null);
         const [status, setStatus] = useState('loading');
-        const [gpsState, setGpsState] = useState('searching');
         const [punchType, setPunchType] = useState(null);
         const [result, setResult] = useState(null);
         const [currentTime, setCurrentTime] = useState(new Date());
         
         const [settingsOpen, setSettingsOpen] = useState(false);
-        const [notifConfig, setNotifConfig] = useState({ enabled: false, entryTimeStr: '08:00', exitTimeStr: '', reminderMins: 10 });
-        const [activeAlert, setActiveAlert] = useState(null);
-        const [monitorActive, setMonitorActive] = useState(false);
-        const [inputUrl, setInputUrl] = useState('');
-        const [loadingPush, setLoadingPush] = useState(false);
-        const [nextAlertInfo, setNextAlertInfo] = useState(''); 
-        const [permStatus, setPermStatus] = useState(Notification.permission);
-        const [showSoundTutorial, setShowSoundTutorial] = useState(false);
-        
+        const [notifConfig, setNotifConfig] = useState({ enabled: false });
+
         const videoRef = useRef(null);
-        const lastNotifRef = useRef(null);
-        const [isIOS, setIsIOS] = useState(false);
-        const [isAndroid, setIsAndroid] = useState(false);
 
-        // Setup Inicial
+        // Relógio independente
         useEffect(() => {
-          const ua = navigator.userAgent.toLowerCase();
-          setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent));
-          setIsAndroid(/android/.test(ua));
-          
-          if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(console.error);
-          
-          const saved = localStorage.getItem('pontoWebConfig');
-          if (saved) {
-             setNotifConfig(prev => ({...prev, ...JSON.parse(saved)}));
-          }
-
-          const timer = setInterval(() => { 
-             setCurrentTime(new Date()); 
-             setMonitorActive(prev => !prev); 
-          }, 1000);
-
+          const timer = setInterval(() => setCurrentTime(new Date()), 1000);
           return () => clearInterval(timer);
-        }, []); 
-
-        // Verificação Visual de Alertas
-        useEffect(() => {
-           const notifTimer = setInterval(() => {
-             checkNotifications();
-             setPermStatus(Notification.permission); 
-           }, 5000); 
-           return () => clearInterval(notifTimer);
-        }, [notifConfig, entryTime, lastAction]);
-
-        // Timeout de Login
-        useEffect(() => {
-           if (status === 'loading') {
-              const timeout = setTimeout(() => {
-                 // Tenta carregar do cache se estiver offline, senão pede link
-                 const cachedUser = localStorage.getItem(CACHE_KEY_USER);
-                 if (cachedUser) {
-                    try {
-                        const data = JSON.parse(cachedUser);
-                        setBolsistaName(data.nome);
-                        setStatus('ready');
-                    } catch(e) {}
-                 } else {
-                    localStorage.removeItem(CACHE_KEY_AUTH); 
-                    setStatus('waiting_link'); 
-                 }
-              }, 10000);
-              return () => clearTimeout(timeout);
-           }
-        }, [status]);
-
-        // --- SISTEMA DE NOTIFICAÇÃO ---
-        const testRemotePush = () => {
-            if (!params?.id) { alert("Erro: Login necessário."); return; }
-            if (confirm("O servidor enviará um Push AGORA. Feche o app IMEDIATAMENTE após clicar em OK para testar o som.")) {
-                setLoadingPush(true);
-                google.script.run
-                    .withSuccessHandler(() => { console.log("Push enviado."); setLoadingPush(false); })
-                    .withFailureHandler(e => { alert("Erro servidor: " + e); setLoadingPush(false); })
-                    .testarPush({ id: params.id, token: params.token });
-            }
-        };
-
-        const requestPushPermission = async () => {
-          if (loadingPush) return;
-          setLoadingPush(true);
-          if (!messaging) { alert("Erro Firebase."); setLoadingPush(false); return; }
-
-          try {
-            const permission = await Notification.requestPermission();
-            setPermStatus(permission);
-            
-            if (permission !== 'granted') {
-              alert('Permissão bloqueada! Toque no cadeado 🔒 para liberar.');
-              setLoadingPush(false);
-              return;
-            }
-
-            const registration = await navigator.serviceWorker.register('./sw.js');
-            const ready = await navigator.serviceWorker.ready;
-            const currentToken = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: ready });
-
-            if (currentToken && params?.id) {
-                google.script.run
-                    .withSuccessHandler(() => { alert("✅ Notificações Ativadas!"); setLoadingPush(false); })
-                    .withFailureHandler((e) => { alert("Erro ao salvar: " + e); setLoadingPush(false); })
-                    .salvarFCMToken({ id: params.id, token: params.token, fcmToken: currentToken });
-            } else {
-                setLoadingPush(false);
-            }
-          } catch (err) {
-            console.error(err);
-            setLoadingPush(false);
-          }
-        };
-
-        const triggerAppAlert = (title, body) => {
-           const now = Date.now();
-           if (lastNotifRef.current && lastNotifRef.current.body === body && (now - lastNotifRef.current.time < 300000)) return;
-           
-           // Som Local
-           try {
-             const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-             audio.volume = 1.0;
-             audio.play().catch(()=>{});
-           } catch(e) {}
-
-           if (navigator.vibrate) navigator.vibrate([1000, 500, 1000]); // Vibração mais longa para ser notada
-           lastNotifRef.current = { body, time: now };
-           
-           setActiveAlert({ title, body });
-           setTimeout(() => setActiveAlert(null), 15000);
-           
-           if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-               new Notification(title, { body, icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', tag: 'pontoweb' });
-           }
-        };
-
-        const checkNotifications = () => {
-           if (!notifConfig.enabled) { setNextAlertInfo(''); return; }
-           
-           const now = new Date();
-           const totalMin = now.getHours() * 60 + now.getMinutes();
-           const isTime = (target) => totalMin >= target && totalMin <= target + 2;
-           let nextAlertText = "Sem alertas próximos";
-
-           if (notifConfig.entryTimeStr && !lastAction) {
-              const [h, m] = notifConfig.entryTimeStr.split(':').map(Number);
-              const target = h * 60 + m;
-              const reminderTime = target - notifConfig.reminderMins;
-              if (totalMin < reminderTime) nextAlertText = `Entrada às ${Math.floor(reminderTime/60)}:${String(reminderTime%60).padStart(2,'0')}`;
-              if (isTime(reminderTime)) triggerAppAlert("⏰ LEMBRETE", `Faltam ${notifConfig.reminderMins} min para entrar.`);
-           }
-
-           let exitTarget = null;
-           if (notifConfig.exitTimeStr) {
-               const [h, m] = notifConfig.exitTimeStr.split(':').map(Number); exitTarget = h * 60 + m;
-           } else if (entryTime && targetHours) {
-               const [h, m] = entryTime.split(':').map(Number); exitTarget = (h * 60 + m) + (targetHours * 60);
-           }
-
-           if (exitTarget && lastAction !== 'Saida') {
-              const reminderTime = exitTarget - notifConfig.reminderMins;
-              if (totalMin < reminderTime) nextAlertText = `Saída às ${Math.floor(reminderTime/60)}:${String(reminderTime%60).padStart(2,'0')}`;
-              if (isTime(reminderTime)) triggerAppAlert("🚪 SAÍDA PRÓXIMA", `Prepare-se para sair em ${notifConfig.reminderMins} min.`);
-              if (isTime(exitTarget)) triggerAppAlert("✅ FIM DO EXPEDIENTE", "Horário cumprido! Pode registrar saída.");
-           }
-           setNextAlertInfo(nextAlertText);
-        };
-
-        // --- LOGIN E REGISTRO ---
-        useEffect(() => {
-           const u = new URLSearchParams(window.location.search);
-           const id = u.get('id'), token = u.get('token');
-           if (id && token) saveAndLogin(id, token);
-           else {
-              const s = localStorage.getItem(CACHE_KEY_AUTH);
-              if (s) { const d = JSON.parse(s); saveAndLogin(d.id, d.token); } else setStatus('waiting_link');
-           }
         }, []);
 
-        const saveAndLogin = (id, token) => {
-           setParams({ id, token });
-           
-           // 1. Tenta carregar do Cache Local Imediatamente
-           const cachedUser = localStorage.getItem(CACHE_KEY_USER);
-           if (cachedUser) {
-               try {
-                   const data = JSON.parse(cachedUser);
-                   setBolsistaName(data.nome);
-                   setEntryTime(data.entryTime);
-                   setExitTime(data.exitTime);
-                   setLastAction(data.lastAction);
-                   setTargetHours(Number(data.horasDia));
-                   setStatus('ready');
-               } catch(e) { console.error("Erro leitura cache", e); }
+        // Inicialização com Cache Rápido
+        useEffect(() => {
+          if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(console.error);
+
+          // 1. Tenta carregar credenciais
+          const urlParams = new URLSearchParams(window.location.search);
+          const urlId = urlParams.get('id');
+          const urlToken = urlParams.get('token');
+          
+          let auth = null;
+          if (urlId && urlToken) {
+              auth = { id: urlId, token: urlToken };
+              localStorage.setItem(CACHE_KEY_AUTH, JSON.stringify(auth));
+          } else {
+              const saved = localStorage.getItem(CACHE_KEY_AUTH);
+              if (saved) auth = JSON.parse(saved);
+          }
+
+          if (auth) {
+             setParams(auth);
+             loadBolsista(auth.id, auth.token);
+             initGPS();
+          } else {
+             setStatus('no-link');
+          }
+        }, []);
+
+        const loadBolsista = (id, token) => {
+           // 1. CARREGAMENTO INSTANTÂNEO (Cache)
+           const cached = localStorage.getItem(CACHE_KEY_DATA);
+           if (cached) {
+               const data = JSON.parse(cached);
+               applyUserData(data);
+               setStatus('ready');
            }
 
-           // 2. Busca dados frescos do servidor (Stale-While-Revalidate)
-           google.script.run.withSuccessHandler(r => {
-              if (r.nome) {
-                 // Salva Auth
-                 localStorage.setItem(CACHE_KEY_AUTH, JSON.stringify({ id, token }));
-                 
-                 // Atualiza Cache de Dados
-                 localStorage.setItem(CACHE_KEY_USER, JSON.stringify(r));
-                 
-                 // Atualiza Estado
-                 setBolsistaName(r.nome); 
-                 setEntryTime(r.entryTime); 
-                 setExitTime(r.exitTime); 
-                 setLastAction(r.lastAction); 
-                 setTargetHours(Number(r.horasDia));
-                 
-                 setStatus('ready'); 
-                 initGPS();
-              } else {
-                 // Se o servidor rejeitar, limpa tudo
-                 localStorage.removeItem(CACHE_KEY_AUTH);
-                 localStorage.removeItem(CACHE_KEY_USER);
-                 setStatus('waiting_link'); 
-                 if(id && token) alert("Link inválido.");
-              }
-           }).withFailureHandler(() => {
-               // Falha de rede: Se já carregou do cache, ok. Se não, avisa.
-               if(!cachedUser) {
-                   setStatus('waiting_link');
-               }
-           }).getBolsistaInfo(id, token);
+           // 2. ATUALIZAÇÃO EM BACKGROUND (Rede)
+           if (navigator.onLine) {
+               google.script.run.withSuccessHandler(res => {
+                  if (res.nome) {
+                      localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(res));
+                      applyUserData(res);
+                      setStatus('ready');
+                  } else {
+                      if (!cached) setStatus('no-link'); // Só mostra erro se não tiver cache
+                  }
+               }).getBolsistaInfo(id, token);
+           } else if (!cached) {
+               // Sem cache e sem rede
+               setStatus('error-offline');
+           }
+        };
+
+        const applyUserData = (data) => {
+           setBolsistaName(data.nome || '');
+           setEntryTime(data.entryTime || null);
+           setExitTime(data.exitTime || null);
+           setLastAction(data.lastAction || null);
         };
 
         const initGPS = () => {
-           setGpsState('searching');
-           navigator.geolocation.getCurrentPosition(
-               p => { setLocation(p.coords); setGpsState('acquired'); }, 
-               () => setGpsState('denied'), 
-               { enableHighAccuracy: true, timeout: 20000 }
-           );
+          if (!navigator.geolocation) return;
+          navigator.geolocation.getCurrentPosition(
+            (pos) => setLocation(pos.coords),
+            () => console.warn('GPS pendente'),
+            { enableHighAccuracy: true, timeout: 10000 }
+          );
         };
 
-        const handleManualLogin = (e) => {
-           e.preventDefault();
-           if (inputUrl.includes('?')) {
-              const u = new URL(inputUrl), p = new URLSearchParams(u.search);
-              setStatus('loading'); saveAndLogin(p.get('id'), p.get('token'));
-           } else alert("Link inválido.");
+        const resetState = () => {
+           setResult(null);
+           setPunchType(null);
+           setStatus('loading');
+           if (params) loadBolsista(params.id, params.token);
+           initGPS();
         };
 
-        const startCamera = async (type) => { 
-            setPunchType(type); 
-            setStatus('punching'); 
-            try { 
-                const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }); 
-                if(videoRef.current) videoRef.current.srcObject = s; 
-            } catch(e) { 
-                alert("Câmera necessária."); setStatus('ready'); 
-            } 
+        const startCamera = async (type) => {
+          setPunchType(type);
+          setStatus('punching');
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+            if (videoRef.current) videoRef.current.srcObject = stream;
+          } catch(e) {
+            alert('Erro: Câmera necessária.');
+            setStatus('ready');
+          }
         };
 
-        const enviarRegistro = () => {
-           const cv = document.createElement('canvas'); cv.width=320; cv.height=240; const ctx = cv.getContext('2d');
-           if(videoRef.current) { ctx.translate(320,0); ctx.scale(-1,1); ctx.drawImage(videoRef.current,0,0,320,240); videoRef.current.srcObject.getTracks().forEach(t=>t.stop()); }
-           
-           const registroData = { 
-               pessoaId: params.id, 
-               token: params.token, 
-               tipo: punchType, 
-               lat: location?.latitude || 0, 
-               lng: location?.longitude || 0, 
-               prec: location?.accuracy || 0, 
-               fotoBase64: cv.toDataURL('image/jpeg', 0.7),
-           };
+        const confirm = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 320; canvas.height = 240;
+          const ctx = canvas.getContext('2d');
+          if (videoRef.current) {
+             // Mantém o espelhamento solicitado
+             ctx.translate(320, 0);
+             ctx.scale(-1, 1);
+             ctx.drawImage(videoRef.current, 0, 0, 320, 240);
+             const stream = videoRef.current.srcObject;
+             if (stream) stream.getTracks().forEach(t => t.stop());
+          }
+          
+          setStatus('sending');
 
-           setStatus('sending');
+          const payload = {
+            pessoaId: params.id,
+            token: params.token,
+            tipo: punchType,
+            lat: location ? location.latitude : '',
+            lng: location ? location.longitude : '',
+            prec: location ? location.accuracy : '',
+            fotoBase64: canvas.toDataURL('image/jpeg', 0.7)
+          };
 
-           google.script.run.withSuccessHandler(r => { 
-               if(r.ok){ 
-                   setResult(r); 
-                   setStatus('success'); 
-                   // Atualiza cache local imediatamente para refletir a ação
-                   const cached = JSON.parse(localStorage.getItem(CACHE_KEY_USER) || '{}');
-                   cached.lastAction = punchType;
-                   localStorage.setItem(CACHE_KEY_USER, JSON.stringify(cached));
-                   setLastAction(punchType);
-               } 
-               else { alert("Erro servidor: " + r.msg); setStatus('ready'); } 
-           }).withFailureHandler(async (err) => {
-               // CORREÇÃO: Mostra o erro exato para diagnóstico
-               alert("Erro de conexão: " + err);
+          if (!navigator.onLine) {
+              alert("Você está offline. Conecte-se à internet para registrar o ponto.");
+              setStatus('ready');
+              return;
+          }
+
+          google.script.run
+            .withSuccessHandler((res) => {
+               if(res.ok) { 
+                 setResult(res); 
+                 setStatus('success'); 
+                 // Atualiza cache local imediatamente para a UI ficar consistente
+                 const currentCache = JSON.parse(localStorage.getItem(CACHE_KEY_DATA) || '{}');
+                 currentCache.lastAction = punchType;
+                 if (punchType === 'Entrada') currentCache.entryTime = res.timestamp.split(' ')[1].substring(0,5);
+                 if (punchType === 'Saida') currentCache.exitTime = res.timestamp.split(' ')[1].substring(0,5);
+                 localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(currentCache));
+               } else { 
+                 alert("Erro: " + res.msg); 
+                 setStatus('ready'); 
+               }
+            })
+            .withFailureHandler((err) => {
+               alert("Erro de conexão: " + err.message);
                setStatus('ready');
-           }).registrarPonto(registroData);
+            })
+            .registrarPonto(payload);
+        };
+
+        // --- SISTEMA DE NOTIFICAÇÃO ---
+        const requestPushPermission = () => {
+           if (!messaging) return alert("Erro Firebase");
+           Notification.requestPermission().then(async p => {
+               if (p === 'granted') {
+                   const reg = await navigator.serviceWorker.ready;
+                   const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+                   if (token && params) {
+                       google.script.run.salvarFCMToken({ id: params.id, token: params.token, fcmToken: token });
+                       // Também salva configuração básica na nuvem
+                       const c = JSON.parse(localStorage.getItem('pontoWebConfig') || '{}');
+                       google.script.run.salvarConfiguracao({
+                           id: params.id, token: params.token, 
+                           entrada: c.entryTimeStr || '08:00', 
+                           saida: c.exitTimeStr || '17:00', 
+                           antecedencia: 10 
+                       });
+                       alert("Notificações ativadas com sucesso!");
+                   }
+               }
+           });
         };
 
         // --- RENDERIZADORES ---
-        if (status === 'loading') return <div className="h-screen flex flex-col items-center justify-center bg-gray-50 fade-in"><div className="spinner border-green-500 mb-4"></div><p className="text-gray-600">Conectando...</p></div>;
-        
-        if (status === 'waiting_link') return (
-           <div className="h-screen flex items-center justify-center bg-gray-50 p-6 fade-in"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm border"><div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon.Link /></div><h2 className="text-xl font-bold text-center mb-2">Bem-vindo</h2><p className="text-sm text-gray-500 mb-4 text-center">Cole seu link de acesso exclusivo:</p><form onSubmit={handleManualLogin}><textarea className="w-full border p-3 mb-4 rounded-xl bg-gray-50 resize-none" rows="3" placeholder="https://..." value={inputUrl} onChange={e=>setInputUrl(e.target.value)}></textarea><button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg">Entrar</button></form></div></div>
+
+        if (status === 'no-link') return (
+          <div className="h-screen flex items-center justify-center p-4 text-center">
+            <div>
+              <h1 className="text-xl font-bold text-red-600">Link Inválido</h1>
+              <p className="text-gray-600 mt-2">Use o link fornecido pelo gestor.</p>
+            </div>
+          </div>
         );
 
         if (status === 'success') return (
-           <div className="h-screen flex flex-col items-center justify-center p-6 text-center bg-white fade-in"><Icon.Check /><h2 className="text-2xl font-bold text-green-700 mt-4">Registrado!</h2><p className="text-4xl font-bold mt-2 text-gray-800">{result.timestamp.split(' ')[1]}</p><p className="text-gray-500 mt-1">{result.status}</p><button onClick={()=>{setResult(null); setStatus('loading'); saveAndLogin(params.id, params.token);}} className="mt-10 bg-green-50 text-green-800 px-8 py-3 rounded-full font-bold border border-green-100">Voltar</button></div>
+          <div className="h-screen flex flex-col items-center justify-center bg-white p-6 text-center fade-in">
+            <Icon.Check />
+            <h2 className="text-2xl font-bold mt-4 text-green-700">Ponto Registrado!</h2>
+            <p className="text-4xl font-bold mt-2 text-gray-800">{result.timestamp.split(' ')[1]}</p>
+            <p className="text-gray-500 mt-1">{result.status}</p>
+            <button onClick={resetState} className="mt-10 px-8 py-3 bg-green-50 text-green-700 font-bold rounded-full hover:bg-green-100 transition-colors shadow-sm">Voltar</button>
+          </div>
         );
-        
+
         if (status === 'punching') return (
-           <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-50 fade-in"><video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover scale-x-[-1] opacity-80"></video><div className="absolute bottom-10 w-full px-6 flex gap-4"><button onClick={()=>{if(videoRef.current?.srcObject) videoRef.current.srcObject.getTracks().forEach(t=>t.stop()); setStatus('ready');}} className="flex-1 bg-white text-black py-4 rounded-xl font-bold shadow-lg">Cancelar</button><button onClick={enviarRegistro} className="flex-1 bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg flex justify-center items-center gap-2"><Icon.Camera/> Confirmar</button></div><div className="absolute top-10 text-white font-bold text-xl bg-black/30 px-4 py-2 rounded-full backdrop-blur-sm">Registrar {punchType}</div></div>
+          <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-50 fade-in">
+            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover opacity-80 scale-x-[-1]"></video>
+            <div className="absolute bottom-10 w-full px-6 flex gap-4">
+              <button onClick={() => { if(videoRef.current?.srcObject) videoRef.current.srcObject.getTracks().forEach(t=>t.stop()); setStatus('ready'); }} className="flex-1 bg-white text-black py-4 rounded-xl font-bold shadow-lg">Cancelar</button>
+              <button onClick={confirm} className="flex-1 bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-transform"><Icon.Camera/> Confirmar</button>
+            </div>
+            <div className="absolute top-10 text-white font-bold text-xl drop-shadow-md bg-black/30 px-4 py-2 rounded-full backdrop-blur-sm">A registar {punchType}</div>
+          </div>
         );
 
-        const isBlocked = (type) => {
-           if (gpsState !== 'acquired' && gpsState !== 'searching') return true; 
-           if (type === 'Entrada' && (lastAction === 'Entrada' || lastAction === 'Intervalo-Fim')) return true;
-           if (type === 'Saida' && lastAction === 'Saida') return true;
-           return false;
-        };
-
-        const renderPermStatus = () => {
-          if (permStatus === 'granted') return <span className="text-xs text-green-600 font-bold bg-green-100 px-2 py-1 rounded">Notificações Ativas</span>;
-          if (permStatus === 'denied') return <span className="text-xs text-red-600 font-bold bg-red-100 px-2 py-1 rounded">Bloqueado (Toque no 🔒)</span>;
-          return <span className="text-xs text-orange-600 font-bold bg-orange-100 px-2 py-1 rounded">Requer Ativação</span>;
-        };
+        const isEntryBlocked = lastAction === 'Entrada' || lastAction === 'Intervalo-Fim'; 
+        const isExitBlocked = lastAction === 'Saida';
 
         return (
           <div className="min-h-screen max-w-md mx-auto bg-white shadow-xl flex flex-col relative">
-             {activeAlert && <div className="fixed top-0 left-0 right-0 z-[100] p-4 slide-down"><div className="bg-white border-l-4 border-orange-500 shadow-2xl rounded-lg p-4 flex items-start gap-3"><div className="text-orange-500 animate-bounce"><Icon.Alert/></div><div className="flex-1"><h4 className="font-bold">{activeAlert.title}</h4><p className="text-sm">{activeAlert.body}</p></div><button onClick={()=>setActiveAlert(null)}>✕</button></div></div>}
-             
-             {showSoundTutorial && (
-               <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4 fade-in" onClick={()=>setShowSoundTutorial(false)}>
-                 <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e=>e.stopPropagation()}>
-                   <h3 className="text-lg font-bold mb-4 text-gray-800">Como ativar o Som? 🔊</h3>
-                   <p className="text-sm text-gray-600 mb-4">O Android bloqueia sons por padrão. Siga os passos:</p>
-                   <ol className="text-sm text-gray-700 space-y-3 mb-6">
-                     <li className="flex gap-3"><span className="bg-gray-100 font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0">1</span><span>Saia do app e vá para a tela inicial.</span></li>
-                     <li className="flex gap-3"><span className="bg-gray-100 font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0">2</span><span><strong>Toque e segure</strong> o ícone do PontoWeb.</span></li>
-                     <li className="flex gap-3"><span className="bg-gray-100 font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0">3</span><span>Toque em <strong>(i)</strong> ou <strong>Informações do App</strong>.</span></li>
-                     <li className="flex gap-3"><span className="bg-gray-100 font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0">4</span><span>Vá em <strong>Notificações</strong> e garanta que <strong>Vibração</strong> esteja ativada. <br/><span className="text-xs text-red-500">(Dica: Verifique se "Vibrar ao tocar" está ativo nas configurações de Som do celular)</span></span></li>
-                   </ol>
-                   <button onClick={()=>setShowSoundTutorial(false)} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Entendi</button>
-                 </div>
-               </div>
-             )}
+            <div className="bg-green-600 p-6 text-white text-center rounded-b-3xl shadow-lg z-10 transition-all relative">
+              
+              {/* Botão Discreto de Configuração */}
+              <button onClick={() => setSettingsOpen(true)} className="absolute top-4 right-4 text-green-200 hover:text-white p-2">
+                  <Icon.Bell />
+              </button>
 
-             <div className={`p-6 text-white text-center rounded-b-3xl shadow-lg z-10 relative ${gpsState==='denied'?'bg-red-600':'bg-green-700'}`}><button onClick={()=>setSettingsOpen(true)} className={`absolute top-4 right-4 text-green-100 hover:text-white bg-white/20 p-2 rounded-full ${notifConfig.enabled?'bell-shake':''}`}><Icon.Bell/></button><h1 className="text-2xl font-bold mt-2">PontoWeb</h1><div className="flex flex-col items-center mt-1 mb-1"><span className="text-4xl font-mono font-bold tracking-widest">{currentTime.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span></div><div className={`flex justify-center items-center gap-2 text-sm opacity-90 mt-2 py-1 px-3 rounded-full inline-flex ${gpsState==='denied'?'bg-red-800 animate-pulse font-bold':'bg-black/20'}`}>{notifConfig.enabled && <Icon.Zap/>} {gpsState==='searching'?'Procurando GPS...':gpsState==='denied'?'GPS Bloqueado!':'Localização Ativa'}</div>
-             {notifConfig.enabled && nextAlertInfo && <div className="mt-2 text-xs text-green-100 bg-black/20 px-2 py-1 rounded-lg">{nextAlertInfo}</div>}
-             </div>
-             {status==='sending' && <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center fade-in"><div className="spinner border-green-500 mb-4"></div><p className="text-green-700 font-bold animate-pulse">Enviando...</p></div>}
-             <div className="flex-1 p-6 flex flex-col justify-center gap-4"><div className="text-center mb-2"><p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Bolsista</p><div className="flex items-center justify-center gap-2 mb-2"><h3 className="text-xl font-bold text-gray-800">{bolsistaName}</h3><button onClick={()=>{if(confirm("Sair?")){localStorage.removeItem('ponto_auth_data'); setStatus('waiting_link');}}} className="bg-gray-100 p-1 rounded-full"><Icon.LogOut/></button></div><div className="flex gap-2 justify-center mt-2 flex-wrap text-sm">{entryTime && <span className="bg-blue-50 text-blue-700 px-3 py-1 font-bold rounded-full border border-blue-100">Entrada: {entryTime}</span>}{exitTime && <span className="bg-orange-50 text-orange-700 px-3 py-1 font-bold rounded-full border border-orange-100">Saída: {exitTime}</span>}</div></div>{gpsState === 'denied' && <div className="bg-red-50 text-red-700 p-3 rounded-lg text-center text-sm font-bold">🚫 Ative a localização no navegador.</div>}<button disabled={isBlocked('Entrada')} onClick={()=>startCamera('Entrada')} className="bg-green-50 text-green-700 border-2 border-green-200 p-5 rounded-2xl font-bold text-xl hover:bg-green-100 active:scale-95 disabled:opacity-50 transition-all">ENTRADA</button><button disabled={isBlocked('Saida')} onClick={()=>startCamera('Saida')} className="bg-red-50 text-red-700 border-2 border-red-200 p-5 rounded-2xl font-bold text-xl hover:bg-red-100 active:scale-95 disabled:opacity-50 transition-all">SAÍDA</button><div className="grid grid-cols-2 gap-4"><button disabled={gpsState!=='acquired'} onClick={()=>startCamera('Intervalo-Inicio')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border hover:bg-gray-100 active:scale-95 disabled:opacity-50">Início Int.</button><button disabled={gpsState!=='acquired'} onClick={()=>startCamera('Intervalo-Fim')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border hover:bg-gray-100 active:scale-95 disabled:opacity-50">Fim Int.</button></div></div>
-             {settingsOpen && (
+              <h1 className="text-2xl font-bold">PontoWeb Unespar</h1>
+              
+              <div className="flex flex-col items-center mt-2 mb-1">
+                <span className="text-4xl font-mono font-bold tracking-widest drop-shadow-md">
+                  {currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+                <span className="text-xs text-green-100 uppercase tracking-wide font-medium mt-1">
+                  {currentTime.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </span>
+              </div>
+
+              <div className="flex justify-center items-center gap-2 text-sm opacity-90 mt-2 bg-green-700/30 py-1 px-3 rounded-full inline-flex">
+                <Icon.Map />
+                {status === 'loading' ? 'Conectando...' : (location ? 'Localização Ativa' : 'Buscando GPS...')}
+              </div>
+            </div>
+
+            {status === 'sending' && (
+              <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center backdrop-blur-sm fade-in">
+                 <div className="spinner mb-4"></div>
+                 <p className="text-green-700 font-bold animate-pulse">A enviar dados...</p>
+              </div>
+            )}
+
+            <div className="flex-1 p-6 flex flex-col justify-center gap-4">
+              <div className="text-center mb-2">
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Bolsista Identificado</p>
+                <h3 className="text-xl font-bold text-gray-800">{bolsistaName || '...'}</h3>
+                
+                <div className="flex gap-2 justify-center mt-2 flex-wrap">
+                  {entryTime && <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm border border-blue-100">Entrada: {entryTime}</div>}
+                  {exitTime && <div className="bg-orange-50 text-orange-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm border border-orange-100">Saída: {exitTime}</div>}
+                </div>
+              </div>
+              
+              <button disabled={status!=='ready' || isEntryBlocked} onClick={() => startCamera('Entrada')} className="bg-green-50 text-green-700 border-2 border-green-200 p-5 rounded-2xl font-bold text-xl hover:bg-green-100 hover:border-green-300 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 shadow-sm">
+                {isEntryBlocked ? 'ENTRADA (Registrada)' : 'ENTRADA'}
+              </button>
+              
+              <button disabled={status!=='ready' || isExitBlocked} onClick={() => startCamera('Saida')} className="bg-red-50 text-red-700 border-2 border-red-200 p-5 rounded-2xl font-bold text-xl hover:bg-red-100 hover:border-red-300 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 shadow-sm">
+                 {isExitBlocked ? 'SAÍDA (Registrada)' : 'SAÍDA'}
+              </button>
+              
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                <button disabled={status!=='ready'} onClick={() => startCamera('Intervalo-Inicio')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border-2 border-gray-100 hover:border-gray-300 hover:bg-gray-100 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100">Início Interv.</button>
+                <button disabled={status!=='ready'} onClick={() => startCamera('Intervalo-Fim')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border-2 border-gray-100 hover:border-gray-300 hover:bg-gray-100 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100">Fim Interv.</button>
+              </div>
+            </div>
+            
+            <div className="p-6 text-center border-t border-gray-100 mt-2">
+               <div className="text-[10px] text-gray-500 mb-1 flex flex-col items-center justify-center gap-1 opacity-80">
+                 <div className="flex items-center gap-1"><Icon.Lock /><span className="font-semibold">Privacidade e Segurança</span></div>
+                 <span className="leading-tight max-w-[280px]">Este aplicativo atende e respeita as normas da Política de Privacidade e Proteção de Dados (LGPD).</span>
+               </div>
+               <div className="text-[9px] text-gray-300 mt-2 font-mono">Versão 3.5</div>
+            </div>
+
+            {settingsOpen && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 fade-in">
                    <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl">
-                      <div className="flex justify-between items-center mb-6 border-b pb-2"><h3 className="font-bold text-lg flex items-center gap-2"><Icon.Bell/> Configurações</h3><button onClick={()=>setSettingsOpen(false)} className="text-gray-400 text-2xl">&times;</button></div>
-                      <div className="mb-6 p-4 bg-gray-50 border border-gray-100 rounded-xl text-center">
-                          <div className="mb-2">{renderPermStatus()}</div>
-                          <button type="button" onClick={requestPushPermission} disabled={loadingPush} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 ${loadingPush ? 'bg-gray-400 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600'} text-white`}>
-                           {loadingPush ? 'Ativando...' : <><Icon.Bell/> Ativar Notificações</>}
-                         </button>
-                         <div className="flex gap-2 mt-2">
-                            <button onClick={testRemotePush} className="flex-1 bg-indigo-50 text-indigo-600 py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 text-xs">
-                              <Icon.Cloud/> Testar Push (Nuvem)
-                            </button>
-                            <button onClick={()=>setShowSoundTutorial(true)} className="flex-1 bg-gray-100 text-gray-600 py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 text-xs">
-                              <Icon.Settings/> 🔊 Não faz som?
-                            </button>
-                            {/* BOTÃO DE INSTALAÇÃO (Opcional) */}
-                            {promptEvent && (
-                                <button onClick={handleInstall} className="flex-1 bg-green-50 text-green-600 py-2 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 text-xs">
-                                  <Icon.Download/> Instalar App
-                                </button>
-                            )}
-                         </div>
+                      <div className="flex justify-between items-center mb-6 border-b pb-2">
+                          <h3 className="font-bold text-lg flex items-center gap-2"><Icon.Bell/> Notificações</h3>
+                          <button onClick={()=>setSettingsOpen(false)} className="text-gray-400 text-2xl">&times;</button>
                       </div>
-
-                      <form onSubmit={(e)=>{e.preventDefault(); const fd=new FormData(e.target); const c={enabled:notifConfig.enabled, entryTimeStr:fd.get('eT'), exitTimeStr:fd.get('xT'), reminderMins:Number(fd.get('rm'))}; setNotifConfig(c); localStorage.setItem('pontoWebConfig', JSON.stringify(c)); if (params?.id) google.script.run.salvarConfiguracao({id: params.id, token: params.token, entrada: c.entryTimeStr, saida: c.exitTimeStr, antecedencia: c.reminderMins}); setSettingsOpen(false);}}>
-                         <div className="space-y-4 mb-6"><div><label className="block text-xs font-bold text-gray-500 uppercase">Entrada</label><input type="time" name="eT" defaultValue={notifConfig.entryTimeStr} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase">Saída</label><input type="time" name="xT" defaultValue={notifConfig.exitTimeStr} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase">Avisar antes (min)</label><input type="number" name="rm" defaultValue={notifConfig.reminderMins} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div></div>
-                         <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow">Salvar Alterações</button>
+                      <button onClick={requestPushPermission} className="w-full py-3 bg-yellow-500 text-white rounded-xl font-bold mb-4 shadow-sm active:scale-95">Ativar/Renovar Notificações</button>
+                      <form onSubmit={(e)=>{e.preventDefault(); const fd=new FormData(e.target); const c={entryTimeStr:fd.get('eT'), exitTimeStr:fd.get('xT')}; localStorage.setItem('pontoWebConfig', JSON.stringify({enabled:true, ...c})); if(params) google.script.run.salvarConfiguracao({id:params.id, token:params.token, entrada:c.entryTimeStr, saida:c.exitTimeStr, antecedencia:10}); setSettingsOpen(false);}}>
+                         <div className="space-y-4 mb-6">
+                            <div><label className="block text-xs font-bold text-gray-500 uppercase">Entrada</label><input type="time" name="eT" className="w-full p-3 bg-gray-50 border rounded-xl text-center"/></div>
+                            <div><label className="block text-xs font-bold text-gray-500 uppercase">Saída</label><input type="time" name="xT" className="w-full p-3 bg-gray-50 border rounded-xl text-center"/></div>
+                         </div>
+                         <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow">Salvar</button>
                       </form>
                    </div>
                 </div>
-             )}
+            )}
           </div>
         );
-      }
-
-      function Main() {
-        const [isStandalone, setIsStandalone] = useState(false);
-        const [promptEvent, setPromptEvent] = useState(null);
-
-        useEffect(() => {
-          if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) setIsStandalone(true);
-          window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); setPromptEvent(e); });
-        }, []);
-
-        return <TimeClock promptEvent={promptEvent} />;
       }
 
       const root = ReactDOM.createRoot(document.getElementById('root'));
