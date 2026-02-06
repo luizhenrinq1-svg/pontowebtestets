@@ -11,11 +11,15 @@
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2983/2983818.png">
     <meta name="theme-color" content="#166534">
 
-    <!-- Dependências -->
+    <!-- Dependências React & Tailwind -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Dependências Firebase (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js"></script>
 
     <style>
       body { background-color: #f0fdf4; color: #166534; font-family: sans-serif; user-select: none; }
@@ -23,6 +27,10 @@
       @keyframes spin { 100% { transform: rotate(360deg); } }
       .fade-in { animation: fadeIn 0.3s ease-in; }
       @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+      
+      /* Toggle Switch */
+      .toggle-checkbox:checked { right: 0; border-color: #16a34a; }
+      .toggle-checkbox:checked + .toggle-label { background-color: #16a34a; }
     </style>
   </head>
   <body>
@@ -35,16 +43,38 @@
       // ⚠️ CONFIGURAÇÃO FIXA DA API
       const API_URL = "https://script.google.com/macros/s/AKfycbyhvzFHFiUj0sSNOzD8wQft9y_yU8OuqN3SSUCfuiwYyzD8xx5JeEMSd9jjOMq-OpXTig/exec";
 
+      // ⚠️ CONFIGURAÇÃO FIREBASE (Igual ao sw.js)
+      const firebaseConfig = {
+        apiKey: "AIzaSyCn89LRlH1lksZ811--jb2jlB2iZS5NH1s",
+        authDomain: "pontoweb-dc8dd.firebaseapp.com",
+        projectId: "pontoweb-dc8dd",
+        storageBucket: "pontoweb-dc8dd.firebasestorage.app",
+        messagingSenderId: "465750633035",
+        appId: "1:465750633035:web:282efd14b807e2a3823bce"
+      };
+
+      // Inicializa Firebase se disponível
+      let messaging = null;
+      try {
+        if (typeof firebase !== 'undefined') {
+          firebase.initializeApp(firebaseConfig);
+          messaging = firebase.messaging();
+        }
+      } catch(e) { console.error("Erro Firebase Init:", e); }
+
+      // Shim do Google Script Run
       if (typeof google === 'undefined') {
         const createRunner = (onSuccess, onFailure) => ({
           withSuccessHandler: (fn) => createRunner(fn, onFailure),
           withFailureHandler: (fn) => createRunner(onSuccess, fn),
           getBolsistaInfo: (id, token) => doRequest('getBolsistaInfo', {id, token}, onSuccess, onFailure),
-          registrarPonto: (payload) => doRequest('registrarPonto', payload, onSuccess, onFailure)
+          registrarPonto: (payload) => doRequest('registrarPonto', payload, onSuccess, onFailure),
+          salvarToken: (payload) => doRequest('salvarToken', payload, onSuccess, onFailure),           // Novo
+          salvarConfiguracao: (payload) => doRequest('salvarConfiguracao', payload, onSuccess, onFailure), // Novo
+          testarPush: (payload) => doRequest('testarPush', payload, onSuccess, onFailure)              // Novo
         });
 
         const doRequest = (action, data, success, failure) => {
-           // Usa o link fixo para fazer a requisição
            fetch(API_URL, {
              method: 'POST',
              body: JSON.stringify({ action, ...data })
@@ -64,7 +94,9 @@
       
       // Service Worker para PWA
       if ('serviceWorker' in navigator) {
-         navigator.serviceWorker.register('./sw.js').catch(console.error);
+         navigator.serviceWorker.register('./sw.js')
+         .then(reg => console.log('SW registrado', reg))
+         .catch(err => console.error('SW erro', err));
       }
     </script>
 
@@ -72,6 +104,11 @@
     <script type="text/babel">
       const { useState, useEffect, useRef } = React;
       const CACHE_KEY_AUTH = 'ponto_auth_data_v2';
+      const CACHE_KEY_NOTIF = 'pontoWebConfig'; // Chave para Etapa 2.A
+      
+      // Chave VAPID Pública (Precisa ser gerada no Console Firebase > Cloud Messaging > Web Push certs)
+      // Usando uma placeholder comum, substitua pela sua "BBoKkzbg..." se tiver uma específica.
+      const VAPID_KEY = "BBoKkzbg_SEU_CODIGO_PUBLICO_AQUI_SE_TIVER_GERADO_NO_FIREBASE"; 
 
       // Ícones
       const Icon = {
@@ -80,8 +117,12 @@
         Check: () => <svg className="w-16 h-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
         Lock: () => <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>,
         Link: () => <svg className="w-12 h-12 text-blue-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>,
-        Exit: () => <svg className="w-3 h-3 cursor-pointer hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" onClick={() => { if(confirm('Sair da conta?')) { localStorage.removeItem('ponto_auth_data_v2'); location.reload(); } }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+        Exit: () => <svg className="w-3 h-3 cursor-pointer hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" onClick={() => { if(confirm('Sair da conta?')) { localStorage.removeItem('ponto_auth_data_v2'); location.reload(); } }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
+        Bell: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
       };
+
+      // Som de Beep simples (Data URI)
+      const BEEP_SOUND = "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU"; // (Versão curta placeholder)
 
       function TimeClock() {
         const [params, setParams] = useState(null);
@@ -95,6 +136,13 @@
         const [result, setResult] = useState(null);
         const [inputUrl, setInputUrl] = useState('');
         const [currentTime, setCurrentTime] = useState(new Date()); 
+        
+        // Estados para Notificações (Etapa 2)
+        const [showSettings, setShowSettings] = useState(false);
+        const [notifConfig, setNotifConfig] = useState({ entrada: '', saida: '', antecedencia: 10 });
+        const [fcmToken, setFcmToken] = useState(null);
+        const [pushStatus, setPushStatus] = useState('idle'); // idle, loading, granted, denied
+        
         const videoRef = useRef(null);
 
         useEffect(() => {
@@ -102,42 +150,100 @@
           return () => clearInterval(timer);
         }, []);
 
-        // === LÓGICA DE AUTENTICAÇÃO EM 3 ETAPAS ===
+        // Carrega config local ao iniciar
         useEffect(() => {
-          // 1. Detecção Automática (URL)
+           const savedConfig = localStorage.getItem(CACHE_KEY_NOTIF);
+           if(savedConfig) {
+             setNotifConfig(JSON.parse(savedConfig));
+           }
+        }, []);
+
+        // === ETAPA 3: MONITOR LOCAL (O "Relógio Escondido") ===
+        useEffect(() => {
+          const checkNotifications = () => {
+             // Só roda se tiver config
+             if (!notifConfig.entrada && !notifConfig.saida) return;
+             
+             const now = new Date();
+             const nowMins = now.getHours() * 60 + now.getMinutes();
+             const tol = parseInt(notifConfig.antecedencia) || 10;
+             
+             // Função auxiliar para converter "HH:mm" em minutos
+             const toMins = (t) => {
+               if(!t) return -1;
+               const [h, m] = t.split(':').map(Number);
+               return h * 60 + m;
+             };
+
+             const entMins = toMins(notifConfig.entrada);
+             const saiMins = toMins(notifConfig.saida);
+
+             // Verifica Entrada
+             if (entMins > 0) {
+               const diff = entMins - nowMins;
+               // Se falta exatamente a tolerância ou é hora exata (para garantir disparo)
+               if (diff === tol || diff === 0) {
+                  triggerAppAlert("⏰ Hora de Entrar!", `Faltam ${diff} minutos.`);
+               }
+             }
+
+             // Verifica Saída
+             if (saiMins > 0) {
+               const diff = saiMins - nowMins;
+               if (diff === tol || diff === 0) {
+                  triggerAppAlert("🚪 Hora de Sair!", `Faltam ${diff} minutos.`);
+               }
+             }
+          };
+
+          const interval = setInterval(checkNotifications, 60000); // Checa a cada minuto (para não ser irritante)
+          // Mas para teste rápido, você pode baixar para 10000 (10s)
+          
+          return () => clearInterval(interval);
+        }, [notifConfig]);
+
+        const triggerAppAlert = (title, body) => {
+           // Toca som se possível
+           try {
+             // const audio = new Audio(BEEP_SOUND); audio.play(); // Descomentar se tiver um BEEP real
+             if('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+           } catch(e) {}
+           
+           // Se o app estiver aberto/focado, mostra alerta visual ou nativo
+           if (Notification.permission === 'granted') {
+              new Notification(title, { body, icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png' });
+           } else {
+              alert(`${title}\n${body}`);
+           }
+        };
+
+        // === LÓGICA DE AUTENTICAÇÃO ===
+        useEffect(() => {
           const u = new URLSearchParams(window.location.search);
           const urlId = u.get('id');
           const urlToken = u.get('token');
 
           if (urlId && urlToken) {
-             console.log("Login via URL detectado");
              saveAndLogin(urlId, urlToken);
              return;
           }
 
-          // 2. Memória do Celular (LocalStorage)
           const saved = localStorage.getItem(CACHE_KEY_AUTH);
           if (saved) {
              try {
                 const d = JSON.parse(saved);
                 if (d.id && d.token) {
-                   console.log("Login via Cache detectado");
                    saveAndLogin(d.id, d.token);
                    return;
                 }
-             } catch(e) { console.error("Cache inválido", e); }
+             } catch(e) {}
           }
-
-          // 3. Falhou tudo? Mostra tela para colar link
           setStatus('waiting_link');
         }, []);
 
         const saveAndLogin = (id, token) => {
-           // Salva para o futuro
            localStorage.setItem(CACHE_KEY_AUTH, JSON.stringify({ id, token }));
            setParams({ id, token });
-           
-           // Inicia carregamento
            setStatus('loading');
            loadBolsista(id, token);
            initGPS();
@@ -146,30 +252,21 @@
         const handleManualLogin = (e) => {
            e.preventDefault();
            if (!inputUrl) return;
-
            try {
-             // Aceita link completo ou apenas query string
              const text = inputUrl.trim();
              let id, token;
-
              if (text.includes('?')) {
-                // Simula url para parser funcionar
                 const dummyBase = text.startsWith('http') ? text : `http://dummy.com/${text}`;
                 const u = new URL(dummyBase);
                 const p = new URLSearchParams(u.search);
                 id = p.get('id');
                 token = p.get('token');
-             } else {
-                throw new Error("Formato inválido");
-             }
+             } else throw new Error("Formato inválido");
 
-             if (id && token) {
-                saveAndLogin(id, token);
-             } else {
-                alert("Link inválido: ID ou Token não encontrados.");
-             }
+             if (id && token) saveAndLogin(id, token);
+             else alert("Link inválido: ID ou Token não encontrados.");
            } catch (err) {
-             alert("Erro ao processar o link. Cole o link completo fornecido pelo gestor.");
+             alert("Erro ao processar o link.");
            }
         };
 
@@ -177,7 +274,6 @@
            google.script.run.withSuccessHandler(res => {
              if(res.error) {
                alert(res.error);
-               // Se deu erro de autenticação, limpa a memória e volta pro login
                localStorage.removeItem(CACHE_KEY_AUTH);
                setStatus('waiting_link');
              } else {
@@ -188,8 +284,7 @@
                setStatus('ready');
              }
            }).withFailureHandler(err => {
-             console.error(err);
-             alert("Erro de conexão com o servidor. Verifique sua internet.");
+             alert("Erro de conexão.");
              setStatus('waiting_link'); 
            }).getBolsistaInfo(id, token);
         };
@@ -203,101 +298,91 @@
           );
         };
 
-        const resetState = () => {
-           setResult(null);
-           setPunchType(null);
-           setStatus('loading');
-           if (params) loadBolsista(params.id, params.token);
-           initGPS();
-        };
-
-        const startCamera = async (type) => {
-          setPunchType(type);
-          setStatus('punching');
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-            if (videoRef.current) videoRef.current.srcObject = stream;
-          } catch(e) {
-            alert('Erro: Câmera necessária.');
-            setStatus('ready');
-          }
-        };
-
-        const confirm = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = 320; canvas.height = 240;
-          const ctx = canvas.getContext('2d');
-          if (videoRef.current) {
-             ctx.translate(320, 0);
-             ctx.scale(-1, 1);
-             ctx.drawImage(videoRef.current, 0, 0, 320, 240);
-             const stream = videoRef.current.srcObject;
-             if (stream) stream.getTracks().forEach(t => t.stop());
-          }
-          const foto = canvas.toDataURL('image/jpeg', 0.7);
+        // === ETAPA 1: SOLICITAR PERMISSÃO E GERAR TOKEN ===
+        const requestPushPermission = async () => {
+          if (!messaging) { alert("Firebase não suportado."); return; }
+          setPushStatus('loading');
           
-          setStatus('sending');
+          try {
+             // 1. Pede Licença
+             const permission = await Notification.requestPermission();
+             if (permission !== 'granted') {
+                setPushStatus('denied');
+                alert("Permissão negada. Ative nas configurações do navegador.");
+                return;
+             }
 
-          const payload = {
-            pessoaId: params.id,
-            token: params.token,
-            tipo: punchType,
-            lat: location ? location.latitude : '',
-            lng: location ? location.longitude : '',
-            prec: location ? location.accuracy : '',
-            fotoBase64: foto
-          };
+             // 2. Prepara Terreno (SW) e 3. Gera Endereço (Token)
+             // Nota: Se não tiver VAPID, tente sem o parâmetro vapidKey primeiro
+             const token = await firebase.messaging().getToken({ vapidKey: VAPID_KEY }); 
+             
+             if (token) {
+               console.log("Token gerado:", token);
+               setFcmToken(token);
+               
+               // 4. Salva no Servidor (Planilha)
+               google.script.run.withSuccessHandler(() => {
+                  setPushStatus('granted');
+                  alert("Notificações Ativadas com Sucesso!");
+               }).salvarToken({ id: params.id, token: params.token, fcmToken: token });
 
-          google.script.run
-            .withSuccessHandler((res) => {
-               if(res.ok) { 
-                 setResult(res); 
-                 setStatus('success'); 
-               } else { 
-                 alert("Erro: " + res.msg); 
-                 setStatus('ready'); 
-               }
-            })
-            .withFailureHandler((err) => {
-               alert("Erro de servidor: " + err.message);
-               setStatus('ready');
-            })
-            .registrarPonto(payload);
+             } else {
+               alert("Não foi possível gerar o token.");
+               setPushStatus('idle');
+             }
+          } catch (err) {
+             console.error(err);
+             alert("Erro ao ativar notificações: " + err.message);
+             setPushStatus('idle');
+          }
         };
 
-        // TELA DE ESPERA DE LINK (ETAPA 3)
+        // === ETAPA 2: SALVAR CONFIGURAÇÃO (LOCAL + NUVEM) ===
+        const handleSaveConfig = () => {
+           // A. Memória Local
+           localStorage.setItem(CACHE_KEY_NOTIF, JSON.stringify(notifConfig));
+           
+           // B. Memória na Nuvem
+           google.script.run.withSuccessHandler(() => {
+              alert("Configuração salva! Você será avisado no horário.");
+              setShowSettings(false);
+           }).salvarConfiguracao({
+              id: params.id,
+              token: params.token,
+              entrada: notifConfig.entrada,
+              saida: notifConfig.saida,
+              antecedencia: notifConfig.antecedencia
+           });
+           
+           // Opcional: Testa um push na hora
+           // google.script.run.testarPush({ id: params.id, token: params.token });
+        };
+
+        // Lógica de Ponto (Câmera, etc...)
+        const resetState = () => { setResult(null); setPunchType(null); setStatus('loading'); if (params) loadBolsista(params.id, params.token); initGPS(); };
+        const startCamera = async (type) => { setPunchType(type); setStatus('punching'); try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }); if (videoRef.current) videoRef.current.srcObject = stream; } catch(e) { alert('Câmera necessária.'); setStatus('ready'); } };
+        const confirm = () => {
+          const canvas = document.createElement('canvas'); canvas.width = 320; canvas.height = 240; const ctx = canvas.getContext('2d');
+          if (videoRef.current) { ctx.translate(320, 0); ctx.scale(-1, 1); ctx.drawImage(videoRef.current, 0, 0, 320, 240); const s = videoRef.current.srcObject; if (s) s.getTracks().forEach(t => t.stop()); }
+          const foto = canvas.toDataURL('image/jpeg', 0.7); setStatus('sending');
+          const payload = { pessoaId: params.id, token: params.token, tipo: punchType, lat: location ? location.latitude : '', lng: location ? location.longitude : '', prec: location ? location.accuracy : '', fotoBase64: foto };
+          google.script.run.withSuccessHandler((res) => { if(res.ok) { setResult(res); setStatus('success'); } else { alert("Erro: " + res.msg); setStatus('ready'); } }).withFailureHandler((err) => { alert("Erro servidor"); setStatus('ready'); }).registrarPonto(payload);
+        };
+
         if (status === 'waiting_link') return (
           <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50">
             <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center fade-in">
               <div className="flex justify-center"><Icon.Link /></div>
               <h1 className="text-2xl font-bold text-gray-800 mb-2">Bem-vindo</h1>
-              <p className="text-gray-500 mb-6 text-sm">Este é seu primeiro acesso neste dispositivo. Por favor, cole seu <strong>Link Pessoal</strong> abaixo para entrar.</p>
-              
               <form onSubmit={handleManualLogin}>
-                <input 
-                  type="text" 
-                  value={inputUrl}
-                  onChange={(e) => setInputUrl(e.target.value)}
-                  placeholder="Cole seu link aqui..." 
-                  className="w-full p-4 border border-gray-300 rounded-xl mb-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                />
-                <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg active:scale-95">
-                  Entrar no Sistema
-                </button>
+                <input type="text" value={inputUrl} onChange={(e) => setInputUrl(e.target.value)} placeholder="Cole seu link aqui..." className="w-full p-4 border rounded-xl mb-4 focus:ring-2 focus:ring-blue-500 outline-none" />
+                <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg">Entrar</button>
               </form>
-              <p className="text-xs text-gray-400 mt-6">Na próxima vez, o acesso será automático.</p>
             </div>
           </div>
         );
 
-        if (status === 'loading') return (
-           <div className="h-screen flex items-center justify-center bg-white">
-             <div className="text-center">
-               <div className="spinner mb-4 mx-auto"></div>
-               <p className="text-gray-500 font-medium">Autenticando...</p>
-             </div>
-           </div>
-        );
+        if (status === 'loading') return <div className="h-screen flex items-center justify-center bg-white"><div className="spinner mb-4 mx-auto"></div></div>;
 
         if (status === 'success') return (
           <div className="h-screen flex flex-col items-center justify-center bg-white p-6 text-center fade-in">
@@ -305,24 +390,16 @@
             <h2 className="text-2xl font-bold mt-4 text-green-700">Ponto Registrado!</h2>
             <p className="text-4xl font-bold mt-2 text-gray-800">{result.timestamp.split(' ')[1]}</p>
             <p className="text-gray-500 mt-1">{result.status}</p>
-            <button onClick={resetState} className="mt-10 px-8 py-3 bg-green-50 text-green-700 font-bold rounded-full hover:bg-green-100 transition-colors shadow-sm">
-              Voltar
-            </button>
+            <button onClick={resetState} className="mt-10 px-8 py-3 bg-green-50 text-green-700 font-bold rounded-full shadow-sm">Voltar</button>
           </div>
         );
 
         if (status === 'punching') return (
           <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-50 fade-in">
             <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover opacity-80 scale-x-[-1]"></video>
-            
             <div className="absolute bottom-10 w-full px-6 flex gap-4">
-              <button onClick={() => { 
-                 if(videoRef.current && videoRef.current.srcObject) {
-                    videoRef.current.srcObject.getTracks().forEach(t=>t.stop()); 
-                 }
-                 setStatus('ready'); 
-              }} className="flex-1 bg-white text-black py-4 rounded-xl font-bold shadow-lg">Cancelar</button>
-              <button onClick={confirm} className="flex-1 bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-transform"><Icon.Camera/> Confirmar</button>
+              <button onClick={() => { if(videoRef.current && videoRef.current.srcObject) videoRef.current.srcObject.getTracks().forEach(t=>t.stop()); setStatus('ready'); }} className="flex-1 bg-white text-black py-4 rounded-xl font-bold shadow-lg">Cancelar</button>
+              <button onClick={confirm} className="flex-1 bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg flex justify-center gap-2"><Icon.Camera/> Confirmar</button>
             </div>
             <div className="absolute top-10 text-white font-bold text-xl drop-shadow-md bg-black/30 px-4 py-2 rounded-full backdrop-blur-sm">A registar {punchType}</div>
           </div>
@@ -333,9 +410,16 @@
 
         return (
           <div className="min-h-screen max-w-md mx-auto bg-white shadow-xl flex flex-col relative">
-            <div className="bg-green-600 p-6 text-white text-center rounded-b-3xl shadow-lg z-10 transition-all">
-              <h1 className="text-2xl font-bold">PontoWeb Unespar</h1>
+            
+            {/* Header */}
+            <div className="bg-green-600 p-6 text-white text-center rounded-b-3xl shadow-lg z-10 transition-all relative">
               
+              {/* Botão Configurações (Etapa 2) */}
+              <button onClick={() => setShowSettings(true)} className="absolute top-4 right-4 p-2 bg-green-700/50 rounded-full hover:bg-green-500 transition-colors">
+                 <Icon.Bell />
+              </button>
+
+              <h1 className="text-2xl font-bold">PontoWeb Unespar</h1>
               <div className="flex flex-col items-center mt-2 mb-1">
                 <span className="text-4xl font-mono font-bold tracking-widest drop-shadow-md">
                   {currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -344,10 +428,8 @@
                   {currentTime.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
                 </span>
               </div>
-
               <div className="flex justify-center items-center gap-2 text-sm opacity-90 mt-2 bg-green-700/30 py-1 px-3 rounded-full inline-flex">
-                <Icon.Map />
-                {location ? 'Localização Ativa' : 'A procurar GPS...'}
+                <Icon.Map /> {location ? 'Localização Ativa' : 'A procurar GPS...'}
               </div>
             </div>
 
@@ -358,48 +440,85 @@
               </div>
             )}
 
+            {/* Main Actions */}
             <div className="flex-1 p-6 flex flex-col justify-center gap-4">
               <div className="text-center mb-2">
                 <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Bolsista Identificado</p>
-                
-                 <>
-                   <h3 className="text-xl font-bold text-gray-800">{bolsistaName}</h3>
-                   <div className="flex gap-2 justify-center mt-2 flex-wrap">
-                     {entryTime && <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm border border-blue-100">Entrada: {entryTime}</div>}
-                     {exitTime && <div className="bg-orange-50 text-orange-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm border border-orange-100">Saída: {exitTime}</div>}
-                   </div>
-                 </>
+                <h3 className="text-xl font-bold text-gray-800">{bolsistaName}</h3>
+                <div className="flex gap-2 justify-center mt-2 flex-wrap">
+                     {entryTime && <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold border border-blue-100">Entrada: {entryTime}</div>}
+                     {exitTime && <div className="bg-orange-50 text-orange-700 px-3 py-1 rounded-full text-sm font-bold border border-orange-100">Saída: {exitTime}</div>}
+                </div>
               </div>
-              
-              <button disabled={isEntryBlocked} onClick={() => startCamera('Entrada')} className="bg-green-50 text-green-700 border-2 border-green-200 p-5 rounded-2xl font-bold text-xl hover:bg-green-100 hover:border-green-300 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 shadow-sm">
+              <button disabled={isEntryBlocked} onClick={() => startCamera('Entrada')} className="bg-green-50 text-green-700 border-2 border-green-200 p-5 rounded-2xl font-bold text-xl hover:bg-green-100 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:scale-100">
                 {isEntryBlocked ? 'ENTRADA (Registrada)' : 'ENTRADA'}
               </button>
-              
-              <button disabled={isExitBlocked} onClick={() => startCamera('Saida')} className="bg-red-50 text-red-700 border-2 border-red-200 p-5 rounded-2xl font-bold text-xl hover:bg-red-100 hover:border-red-300 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 shadow-sm">
+              <button disabled={isExitBlocked} onClick={() => startCamera('Saida')} className="bg-red-50 text-red-700 border-2 border-red-200 p-5 rounded-2xl font-bold text-xl hover:bg-red-100 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:scale-100">
                  {isExitBlocked ? 'SAÍDA (Registrada)' : 'SAÍDA'}
               </button>
-              
               <div className="grid grid-cols-2 gap-4 mt-2">
-                <button onClick={() => startCamera('Intervalo-Inicio')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border-2 border-gray-100 hover:border-gray-300 hover:bg-gray-100 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100">
-                  Início Interv.
-                </button>
-                <button onClick={() => startCamera('Intervalo-Fim')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border-2 border-gray-100 hover:border-gray-300 hover:bg-gray-100 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100">
-                  Fim Interv.
-                </button>
+                <button onClick={() => startCamera('Intervalo-Inicio')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border-2 border-gray-100 hover:bg-gray-100 active:scale-95">Início Interv.</button>
+                <button onClick={() => startCamera('Intervalo-Fim')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border-2 border-gray-100 hover:bg-gray-100 active:scale-95">Fim Interv.</button>
               </div>
             </div>
+
+            {/* Modal de Configuração (Etapa 2 UI) */}
+            {showSettings && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 fade-in">
+                <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl p-6 shadow-2xl transform transition-transform">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-lg text-gray-800">Configurar Alertas</h3>
+                    <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                  </div>
+                  
+                  {/* Etapa 1: Ativar */}
+                  <div className="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-blue-800">Notificações Push</p>
+                        <p className="text-xs text-blue-600">Receba alertas mesmo com app fechado</p>
+                      </div>
+                      <button onClick={requestPushPermission} disabled={pushStatus === 'granted'} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${pushStatus === 'granted' ? 'bg-green-200 text-green-800' : 'bg-blue-600 text-white shadow-lg'}`}>
+                         {pushStatus === 'granted' ? 'Ativo ✓' : pushStatus === 'loading' ? '...' : 'Ativar'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Etapa 2: Formulário */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Horário Previsto de Entrada</label>
+                      <input type="time" value={notifConfig.entrada} onChange={e => setNotifConfig({...notifConfig, entrada: e.target.value})} className="w-full p-3 border rounded-xl bg-gray-50 font-bold text-gray-800 text-center text-lg"/>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Horário Previsto de Saída</label>
+                      <input type="time" value={notifConfig.saida} onChange={e => setNotifConfig({...notifConfig, saida: e.target.value})} className="w-full p-3 border rounded-xl bg-gray-50 font-bold text-gray-800 text-center text-lg"/>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Lembrar com antecedência (min)</label>
+                      <select value={notifConfig.antecedencia} onChange={e => setNotifConfig({...notifConfig, antecedencia: e.target.value})} className="w-full p-3 border rounded-xl bg-gray-50">
+                        <option value="5">5 minutos antes</option>
+                        <option value="10">10 minutos antes</option>
+                        <option value="15">15 minutos antes</option>
+                        <option value="30">30 minutos antes</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <button onClick={handleSaveConfig} className="w-full mt-6 bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg active:scale-95 transition-transform">
+                    Salvar Configuração
+                  </button>
+                </div>
+              </div>
+            )}
             
+            {/* Footer */}
             <div className="p-6 text-center border-t border-gray-100 mt-2">
                <div className="text-[10px] text-gray-500 mb-1 flex flex-col items-center justify-center gap-1 opacity-80">
-                 <div className="flex items-center gap-1">
-                   <Icon.Lock />
-                   <span className="font-semibold">Privacidade e Segurança</span>
-                 </div>
-                 <span className="leading-tight max-w-[280px]">Este aplicativo atende e respeita as normas da Política de Privacidade e Proteção de Dados (LGPD).</span>
+                 <div className="flex items-center gap-1"><Icon.Lock /> <span className="font-semibold">Privacidade e Segurança</span></div>
+                 <span className="leading-tight max-w-[280px]">Este aplicativo atende e respeita as normas da Política de Privacidade (LGPD).</span>
                </div>
-               <div className="text-[9px] text-gray-300 mt-2 font-mono flex justify-center gap-2 items-center">
-                 Versão 3.5 <Icon.Exit />
-               </div>
+               <div className="text-[9px] text-gray-300 mt-2 font-mono flex justify-center gap-2 items-center">Versão 4.0 <Icon.Exit /></div>
             </div>
           </div>
         );
