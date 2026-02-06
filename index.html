@@ -23,52 +23,18 @@
       @keyframes spin { 100% { transform: rotate(360deg); } }
       .fade-in { animation: fadeIn 0.3s ease-in; }
       @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-      
-      /* Setup Screen Styles */
-      #setup-screen { position: fixed; inset: 0; z-index: 100; background: #fff; display: flex; align-items: center; justify-content: center; padding: 20px; }
-      .hidden { display: none !important; }
     </style>
   </head>
   <body>
 
-    <!-- TELA DE CONFIGURAÇÃO (Só aparece se não tiver URL salva) -->
-    <div id="setup-screen" class="hidden">
-      <div class="max-w-md w-full text-center">
-        <div class="mb-6 flex justify-center">
-          <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-green-600">
-            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          </div>
-        </div>
-        <h2 class="text-2xl font-bold text-gray-800 mb-2">Configuração Inicial</h2>
-        <p class="text-gray-500 mb-6 text-sm">Cole o Link do Web App (Google Script) para conectar.</p>
-        <input type="text" id="api-url" placeholder="https://script.google.com/macros/s/.../exec" class="w-full p-3 border rounded-lg mb-4 text-sm focus:ring-2 focus:ring-green-500 outline-none">
-        <button onclick="saveConfig()" class="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 transition">Conectar</button>
-      </div>
-    </div>
-
     <!-- APP REACT -->
     <div id="root"></div>
 
-    <!-- SHIM PARA GITHUB PAGES (Faz o google.script.run funcionar via Fetch) -->
+    <!-- SHIM PARA GITHUB PAGES (Conecta com seu Script Google) -->
     <script>
-      const STORAGE_KEY_URL = 'pontoweb_api_url_v1';
-      
-      // Função para salvar a URL digitada
-      function saveConfig() {
-        const url = document.getElementById('api-url').value.trim();
-        if(!url.includes('script.google.com')) { alert('Link inválido!'); return; }
-        localStorage.setItem(STORAGE_KEY_URL, url);
-        location.reload();
-      }
+      // ⚠️ CONFIGURAÇÃO FIXA DA API
+      const API_URL = "https://script.google.com/macros/s/AKfycbyhvzFHFiUj0sSNOzD8wQft9y_yU8OuqN3SSUCfuiwYyzD8xx5JeEMSd9jjOMq-OpXTig/exec";
 
-      // Verifica se temos a URL, senão mostra a tela de setup
-      const savedUrl = localStorage.getItem(STORAGE_KEY_URL);
-      if(!savedUrl) {
-        document.getElementById('setup-screen').classList.remove('hidden');
-      }
-
-      // === SHIM DO GOOGLE SCRIPT RUN ===
-      // Isso engana o React achando que está no Google, mas faz requests HTTP reais
       if (typeof google === 'undefined') {
         const createRunner = (onSuccess, onFailure) => ({
           withSuccessHandler: (fn) => createRunner(fn, onFailure),
@@ -78,11 +44,8 @@
         });
 
         const doRequest = (action, data, success, failure) => {
-           if(!savedUrl) return;
-           
-           // Usa POST 'no-cors' ou normal dependendo da configuração do GAS. 
-           // O padrão text/plain evita Preflight OPTIONS error no GAS.
-           fetch(savedUrl, {
+           // Usa o link fixo para fazer a requisição
+           fetch(API_URL, {
              method: 'POST',
              body: JSON.stringify({ action, ...data })
            })
@@ -94,27 +57,21 @@
         window.google = {
           script: {
             run: createRunner(null, null),
-            url: {
-              getLocation: (cb) => {
-                 const params = new URLSearchParams(window.location.search);
-                 cb({ parameter: { id: params.get('id'), token: params.get('token') } });
-              }
-            }
+            url: { getLocation: (cb) => { cb({ parameter: {} }); } }
           }
         };
       }
       
-      // Registro do Service Worker (PWA)
+      // Service Worker para PWA
       if ('serviceWorker' in navigator) {
-         navigator.serviceWorker.register('./sw.js')
-         .then(() => console.log('SW registrado'))
-         .catch(err => console.log('Erro SW', err));
+         navigator.serviceWorker.register('./sw.js').catch(console.error);
       }
     </script>
 
     <!-- REACT APP LOGIC -->
     <script type="text/babel">
       const { useState, useEffect, useRef } = React;
+      const CACHE_KEY_AUTH = 'ponto_auth_data_v2';
 
       // Ícones
       const Icon = {
@@ -122,7 +79,8 @@
         Camera: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
         Check: () => <svg className="w-16 h-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
         Lock: () => <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>,
-        Reset: () => <svg className="w-3 h-3 cursor-pointer hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" onClick={() => { localStorage.removeItem('pontoweb_api_url_v1'); location.reload(); }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Link: () => <svg className="w-12 h-12 text-blue-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>,
+        Exit: () => <svg className="w-3 h-3 cursor-pointer hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" onClick={() => { if(confirm('Sair da conta?')) { localStorage.removeItem('ponto_auth_data_v2'); location.reload(); } }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
       };
 
       function TimeClock() {
@@ -135,6 +93,7 @@
         const [status, setStatus] = useState('loading');
         const [punchType, setPunchType] = useState(null);
         const [result, setResult] = useState(null);
+        const [inputUrl, setInputUrl] = useState('');
         const [currentTime, setCurrentTime] = useState(new Date()); 
         const videoRef = useRef(null);
 
@@ -143,48 +102,103 @@
           return () => clearInterval(timer);
         }, []);
 
+        // === LÓGICA DE AUTENTICAÇÃO EM 3 ETAPAS ===
         useEffect(() => {
-          // Shim do getLocation
-          google.script.url.getLocation((loc) => {
-            const id = loc.parameter.id;
-            const token = loc.parameter.token;
-            if (id && token) {
-              setParams({ id, token });
-              loadBolsista(id, token);
-              initGPS();
-            } else {
-              setStatus('no-link');
-            }
-          });
+          // 1. Detecção Automática (URL)
+          const u = new URLSearchParams(window.location.search);
+          const urlId = u.get('id');
+          const urlToken = u.get('token');
+
+          if (urlId && urlToken) {
+             console.log("Login via URL detectado");
+             saveAndLogin(urlId, urlToken);
+             return;
+          }
+
+          // 2. Memória do Celular (LocalStorage)
+          const saved = localStorage.getItem(CACHE_KEY_AUTH);
+          if (saved) {
+             try {
+                const d = JSON.parse(saved);
+                if (d.id && d.token) {
+                   console.log("Login via Cache detectado");
+                   saveAndLogin(d.id, d.token);
+                   return;
+                }
+             } catch(e) { console.error("Cache inválido", e); }
+          }
+
+          // 3. Falhou tudo? Mostra tela para colar link
+          setStatus('waiting_link');
         }, []);
+
+        const saveAndLogin = (id, token) => {
+           // Salva para o futuro
+           localStorage.setItem(CACHE_KEY_AUTH, JSON.stringify({ id, token }));
+           setParams({ id, token });
+           
+           // Inicia carregamento
+           setStatus('loading');
+           loadBolsista(id, token);
+           initGPS();
+        };
+
+        const handleManualLogin = (e) => {
+           e.preventDefault();
+           if (!inputUrl) return;
+
+           try {
+             // Aceita link completo ou apenas query string
+             const text = inputUrl.trim();
+             let id, token;
+
+             if (text.includes('?')) {
+                // Simula url para parser funcionar
+                const dummyBase = text.startsWith('http') ? text : `http://dummy.com/${text}`;
+                const u = new URL(dummyBase);
+                const p = new URLSearchParams(u.search);
+                id = p.get('id');
+                token = p.get('token');
+             } else {
+                throw new Error("Formato inválido");
+             }
+
+             if (id && token) {
+                saveAndLogin(id, token);
+             } else {
+                alert("Link inválido: ID ou Token não encontrados.");
+             }
+           } catch (err) {
+             alert("Erro ao processar o link. Cole o link completo fornecido pelo gestor.");
+           }
+        };
 
         const loadBolsista = (id, token) => {
            google.script.run.withSuccessHandler(res => {
              if(res.error) {
                alert(res.error);
-               setStatus('no-link');
+               // Se deu erro de autenticação, limpa a memória e volta pro login
+               localStorage.removeItem(CACHE_KEY_AUTH);
+               setStatus('waiting_link');
              } else {
                setBolsistaName(res.nome || '');
                setEntryTime(res.entryTime || null);
                setExitTime(res.exitTime || null);
                setLastAction(res.lastAction || null);
-               if(status === 'loading') setStatus('ready');
+               setStatus('ready');
              }
            }).withFailureHandler(err => {
              console.error(err);
-             setStatus('ready'); // Permite tentar de novo
+             alert("Erro de conexão com o servidor. Verifique sua internet.");
+             setStatus('waiting_link'); 
            }).getBolsistaInfo(id, token);
         };
 
         const initGPS = () => {
-          if (!navigator.geolocation) { setStatus('error'); return; }
-          // setStatus('locating'); // Removido para não bloquear a UI enquanto carrega info
+          if (!navigator.geolocation) return;
           navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              setLocation(pos.coords);
-              // setStatus('ready');
-            },
-            () => setStatus('error'),
+            (pos) => setLocation(pos.coords),
+            () => console.warn("GPS Pendente"),
             { enableHighAccuracy: true }
           );
         };
@@ -251,16 +265,38 @@
             .registrarPonto(payload);
         };
 
-        if (status === 'no-link') return (
-          <div className="h-screen flex items-center justify-center p-4 text-center">
-            <div>
-              <h1 className="text-xl font-bold text-red-600">Link Inválido</h1>
-              <p className="text-gray-600 mt-2">Use o link pessoal fornecido pelo gestor.</p>
-              <div className="mt-8 text-xs text-gray-400">
-                 <span onClick={() => { localStorage.removeItem('pontoweb_api_url_v1'); location.reload(); }} className="underline cursor-pointer">Redefinir Servidor</span>
-              </div>
+        // TELA DE ESPERA DE LINK (ETAPA 3)
+        if (status === 'waiting_link') return (
+          <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50">
+            <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md text-center fade-in">
+              <div className="flex justify-center"><Icon.Link /></div>
+              <h1 className="text-2xl font-bold text-gray-800 mb-2">Bem-vindo</h1>
+              <p className="text-gray-500 mb-6 text-sm">Este é seu primeiro acesso neste dispositivo. Por favor, cole seu <strong>Link Pessoal</strong> abaixo para entrar.</p>
+              
+              <form onSubmit={handleManualLogin}>
+                <input 
+                  type="text" 
+                  value={inputUrl}
+                  onChange={(e) => setInputUrl(e.target.value)}
+                  placeholder="Cole seu link aqui..." 
+                  className="w-full p-4 border border-gray-300 rounded-xl mb-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                />
+                <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg active:scale-95">
+                  Entrar no Sistema
+                </button>
+              </form>
+              <p className="text-xs text-gray-400 mt-6">Na próxima vez, o acesso será automático.</p>
             </div>
           </div>
+        );
+
+        if (status === 'loading') return (
+           <div className="h-screen flex items-center justify-center bg-white">
+             <div className="text-center">
+               <div className="spinner mb-4 mx-auto"></div>
+               <p className="text-gray-500 font-medium">Autenticando...</p>
+             </div>
+           </div>
         );
 
         if (status === 'success') return (
@@ -294,7 +330,6 @@
 
         const isEntryBlocked = lastAction === 'Entrada' || lastAction === 'Intervalo-Fim'; 
         const isExitBlocked = lastAction === 'Saida';
-        const isLoading = status === 'loading';
 
         return (
           <div className="min-h-screen max-w-md mx-auto bg-white shadow-xl flex flex-col relative">
@@ -326,35 +361,29 @@
             <div className="flex-1 p-6 flex flex-col justify-center gap-4">
               <div className="text-center mb-2">
                 <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Bolsista Identificado</p>
-                {isLoading ? (
-                   <div className="animate-pulse flex flex-col items-center">
-                     <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
-                     <div className="h-4 bg-gray-100 rounded w-1/2"></div>
+                
+                 <>
+                   <h3 className="text-xl font-bold text-gray-800">{bolsistaName}</h3>
+                   <div className="flex gap-2 justify-center mt-2 flex-wrap">
+                     {entryTime && <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm border border-blue-100">Entrada: {entryTime}</div>}
+                     {exitTime && <div className="bg-orange-50 text-orange-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm border border-orange-100">Saída: {exitTime}</div>}
                    </div>
-                ) : (
-                   <>
-                     <h3 className="text-xl font-bold text-gray-800">{bolsistaName}</h3>
-                     <div className="flex gap-2 justify-center mt-2 flex-wrap">
-                       {entryTime && <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm border border-blue-100">Entrada: {entryTime}</div>}
-                       {exitTime && <div className="bg-orange-50 text-orange-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm border border-orange-100">Saída: {exitTime}</div>}
-                     </div>
-                   </>
-                )}
+                 </>
               </div>
               
-              <button disabled={isLoading || isEntryBlocked} onClick={() => startCamera('Entrada')} className="bg-green-50 text-green-700 border-2 border-green-200 p-5 rounded-2xl font-bold text-xl hover:bg-green-100 hover:border-green-300 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 shadow-sm">
+              <button disabled={isEntryBlocked} onClick={() => startCamera('Entrada')} className="bg-green-50 text-green-700 border-2 border-green-200 p-5 rounded-2xl font-bold text-xl hover:bg-green-100 hover:border-green-300 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 shadow-sm">
                 {isEntryBlocked ? 'ENTRADA (Registrada)' : 'ENTRADA'}
               </button>
               
-              <button disabled={isLoading || isExitBlocked} onClick={() => startCamera('Saida')} className="bg-red-50 text-red-700 border-2 border-red-200 p-5 rounded-2xl font-bold text-xl hover:bg-red-100 hover:border-red-300 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 shadow-sm">
+              <button disabled={isExitBlocked} onClick={() => startCamera('Saida')} className="bg-red-50 text-red-700 border-2 border-red-200 p-5 rounded-2xl font-bold text-xl hover:bg-red-100 hover:border-red-300 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 shadow-sm">
                  {isExitBlocked ? 'SAÍDA (Registrada)' : 'SAÍDA'}
               </button>
               
               <div className="grid grid-cols-2 gap-4 mt-2">
-                <button disabled={isLoading} onClick={() => startCamera('Intervalo-Inicio')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border-2 border-gray-100 hover:border-gray-300 hover:bg-gray-100 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100">
+                <button onClick={() => startCamera('Intervalo-Inicio')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border-2 border-gray-100 hover:border-gray-300 hover:bg-gray-100 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100">
                   Início Interv.
                 </button>
-                <button disabled={isLoading} onClick={() => startCamera('Intervalo-Fim')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border-2 border-gray-100 hover:border-gray-300 hover:bg-gray-100 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100">
+                <button onClick={() => startCamera('Intervalo-Fim')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border-2 border-gray-100 hover:border-gray-300 hover:bg-gray-100 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100">
                   Fim Interv.
                 </button>
               </div>
@@ -369,7 +398,7 @@
                  <span className="leading-tight max-w-[280px]">Este aplicativo atende e respeita as normas da Política de Privacidade e Proteção de Dados (LGPD).</span>
                </div>
                <div className="text-[9px] text-gray-300 mt-2 font-mono flex justify-center gap-2 items-center">
-                 Versão 3.2 <Icon.Reset />
+                 Versão 3.5 <Icon.Exit />
                </div>
             </div>
           </div>
