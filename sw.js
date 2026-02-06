@@ -26,8 +26,8 @@ const firebaseConfig = {
 
 // Inicializa Firebase no SW se configurado
 try {
-  // Verificação simples para garantir que a chave não é o placeholder antigo
-  if (firebaseConfig.apiKey !== "SUA_API_KEY") {
+  // Verifica se a biblioteca carregou antes de usar
+  if (typeof firebase !== 'undefined' && firebaseConfig.apiKey !== "SUA_API_KEY") {
     firebase.initializeApp(firebaseConfig);
     const messaging = firebase.messaging();
 
@@ -46,13 +46,21 @@ try {
       self.registration.showNotification(notificationTitle, notificationOptions);
     });
   }
-} catch(e) { console.log('Erro ao inicializar Firebase no SW:', e); }
+} catch(e) { console.log('Erro ao inicializar Firebase no SW (pode ser offline):', e); }
 
-// --- CACHE E OFFLINE (Padrão) ---
+// --- CACHE E OFFLINE (Versão Robusta) ---
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE)));
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => {
+        // Tenta cachear, mas não falha a instalação se um arquivo der erro (ex: 404)
+        return cache.addAll(ASSETS_TO_CACHE).catch(err => {
+           console.warn('Aviso: Alguns arquivos não foram cacheados, mas o SW continuará.', err);
+        });
+      })
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -72,7 +80,10 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      return cachedResponse || fetch(event.request);
+      return cachedResponse || fetch(event.request).catch(() => {
+         // Fallback opcional para quando estiver offline e sem cache
+         // return caches.match('./offline.html');
+      });
     })
   );
 });
