@@ -1,7 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'pontoweb-v3-sound';
+const CACHE_NAME = 'pontoweb-v4-heavy-vibration';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -13,6 +13,7 @@ const ASSETS_TO_CACHE = [
   'https://cdn-icons-png.flaticon.com/512/2983/2983818.png'
 ];
 
+// Configuração do Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyCn89LRlH1lksZ811--jb2jlB2iZS5NH1s",
   authDomain: "pontoweb-dc8dd.firebaseapp.com",
@@ -36,12 +37,13 @@ try {
         body: payload.notification?.body || 'Aviso de horário',
         icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png',
         
-        // --- CONFIGURAÇÕES DE SOM E VIBRAÇÃO ---
-        vibrate: [500, 200, 500], // Vibra forte, pausa, vibra forte
-        renotify: true,           // Toca som mesmo se já tiver outra notificação do app
-        tag: 'pontoweb-alert',    // Agrupa as mensagens
-        requireInteraction: true, // A notificação fica na tela até o usuário clicar
-        silent: false             // Garante que não é silenciosa
+        // --- CONFIGURAÇÃO DE VIBRAÇÃO FORTE ---
+        // Padrão: [Vibra 3s, Pausa 1s, Vibra 3s, Pausa 1s, Vibra 3s]
+        vibrate: [3000, 1000, 3000, 1000, 3000], 
+        renotify: true,           
+        tag: 'pontoweb-alert',    
+        requireInteraction: true, 
+        silent: false             
       };
 
       self.registration.showNotification(notificationTitle, notificationOptions);
