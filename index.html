@@ -46,27 +46,28 @@
 
       // ======================================================================
       // ⚠️ 1. COLOQUE A URL DO APPS SCRIPT AQUI
-      const API_URL = "https://script.google.com/macros/s/AKfycbyhvzFHFiUj0sSNOzD8wQft9y_yU8OuqN3SSUCfuiwYyzD8xx5JeEMSd9jjOMq-OpXTig/exec"; 
+      const API_URL = "SUA_URL_DO_GAS_AQUI"; 
       
-      // ⚠️ 2. PREENCHA COM DADOS DO FIREBASE CONSOLE (Configurações do Projeto > Geral)
+      // ⚠️ 2. DADOS DO FIREBASE (ATUALIZADOS)
       const firebaseConfig = {
-        apiKey: "SUA_API_KEY",
-        authDomain: "SEU_PROJETO.firebaseapp.com",
-        projectId: "SEU_PROJECT_ID",
-        storageBucket: "SEU_PROJETO.appspot.com",
-        messagingSenderId: "SEU_SENDER_ID",
-        appId: "SEU_APP_ID"
+        apiKey: "AIzaSyCn89LRlH1lksZ811--jb2jlB2iZS5NH1s",
+        authDomain: "pontoweb-dc8dd.firebaseapp.com",
+        projectId: "pontoweb-dc8dd",
+        storageBucket: "pontoweb-dc8dd.firebasestorage.app",
+        messagingSenderId: "465750633035",
+        appId: "1:465750633035:web:282efd14b807e2a3823bce"
       };
       // ======================================================================
 
       // Inicializa Firebase se configurado
       let messaging = null;
       try {
-        if (firebaseConfig.apiKey !== "SUA_API_KEY") {
+        // Verifica se as chaves foram preenchidas (não são mais placeholders)
+        if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "SUA_API_KEY") {
           firebase.initializeApp(firebaseConfig);
           messaging = firebase.messaging();
         }
-      } catch (e) { console.log("Firebase não configurado ainda."); }
+      } catch (e) { console.log("Firebase não configurado ou erro na inicialização:", e); }
 
       const ExternalBridge = {
         request: async (action, payload = {}) => {
@@ -257,25 +258,27 @@
         // --- SISTEMA DE NOTIFICAÇÃO (LOCAL & PUSH) ---
         const requestPushPermission = () => {
           if (!messaging) {
-            alert("Firebase não configurado. Adicione suas chaves no código.");
+            alert("Firebase não configurado ou chave API inválida.");
             return;
           }
           Notification.requestPermission().then((permission) => {
             if (permission === 'granted') {
               console.log('Permissão concedida.');
-              // Pega o token e manda pro Apps Script
-              messaging.getToken({ vapidKey: 'SUA_VAPID_KEY_AQUI' }).then((currentToken) => {
+              // ⚠️⚠️ SUBSTITUA 'SUA_VAPID_KEY_AQUI' PELA CHAVE GERADA NO CONSOLE DO FIREBASE (Aba Cloud Messaging > Web Push Certificates)
+              messaging.getToken({ vapidKey: 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0' }).then((currentToken) => {
                 if (currentToken) {
                   console.log('Token obtido:', currentToken);
                   // Envia para o backend para salvar
                   if (params && params.id) {
                      google.script.run.salvarFCMToken({ id: params.id, token: params.token, fcmToken: currentToken });
+                     alert("Notificações Push ativadas com sucesso!");
                   }
                 } else {
                   console.log('Nenhum token ID disponível.');
                 }
               }).catch((err) => {
                 console.log('Erro ao obter token.', err);
+                alert("Erro ao ativar notificações: " + err.message);
               });
             } else {
               alert('Permissão de notificação negada.');
