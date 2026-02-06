@@ -19,6 +19,10 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
+    <!-- FIREBASE (Essencial para Push Notifications) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js"></script>
+
     <style>
       body { background-color: #f0fdf4; color: #166534; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
       .spinner { border: 4px solid #dcfce7; width: 40px; height: 40px; border-radius: 50%; border-left-color: #16a34a; animation: spin 1s linear infinite; }
@@ -41,14 +45,33 @@
       const { useState, useEffect, useRef } = React;
 
       // ======================================================================
-      // ⚠️ COLOQUE AQUI A URL DO SEU GOOGLE APPS SCRIPT (WEB APP)
+      // ⚠️ 1. COLOQUE A URL DO APPS SCRIPT AQUI
       const API_URL = "https://script.google.com/macros/s/AKfycbyhvzFHFiUj0sSNOzD8wQft9y_yU8OuqN3SSUCfuiwYyzD8xx5JeEMSd9jjOMq-OpXTig/exec"; 
+      
+      // ⚠️ 2. PREENCHA COM DADOS DO FIREBASE CONSOLE (Configurações do Projeto > Geral)
+      const firebaseConfig = {
+        apiKey: "SUA_API_KEY",
+        authDomain: "SEU_PROJETO.firebaseapp.com",
+        projectId: "SEU_PROJECT_ID",
+        storageBucket: "SEU_PROJETO.appspot.com",
+        messagingSenderId: "SEU_SENDER_ID",
+        appId: "SEU_APP_ID"
+      };
       // ======================================================================
+
+      // Inicializa Firebase se configurado
+      let messaging = null;
+      try {
+        if (firebaseConfig.apiKey !== "SUA_API_KEY") {
+          firebase.initializeApp(firebaseConfig);
+          messaging = firebase.messaging();
+        }
+      } catch (e) { console.log("Firebase não configurado ainda."); }
 
       const ExternalBridge = {
         request: async (action, payload = {}) => {
           if (!API_URL.startsWith('http')) {
-            alert("ERRO DE CONFIGURAÇÃO: Edite o arquivo index.html e coloque a URL do Apps Script na linha 45.");
+            alert("ERRO DE CONFIGURAÇÃO: Edite o index.html e coloque a URL do Apps Script.");
             throw new Error("URL não configurada");
           }
           const response = await fetch(API_URL, {
@@ -67,7 +90,9 @@
             withSuccessHandler: (fn) => createRunner(fn, failure),
             withFailureHandler: (fn) => createRunner(success, fn),
             getBolsistaInfo: (id, token) => ExternalBridge.request('getBolsistaInfo', { id, token }).then(success).catch(failure || console.error),
-            registrarPonto: (payload) => ExternalBridge.request('registrarPonto', payload).then(success).catch(failure || console.error)
+            registrarPonto: (payload) => ExternalBridge.request('registrarPonto', payload).then(success).catch(failure || console.error),
+            // Nova função para salvar o Token de notificação
+            salvarFCMToken: (payload) => ExternalBridge.request('salvarToken', payload).then(success).catch(failure || console.error)
           };
         };
         window.google = { script: { run: createRunner() } };
@@ -165,9 +190,12 @@
         const wakeLockRef = useRef(null);
         const phantomAudioRef = useRef(null);
         const [isIOS, setIsIOS] = useState(false);
+        const [isAndroid, setIsAndroid] = useState(false);
 
         useEffect(() => {
+          const ua = navigator.userAgent.toLowerCase();
           setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent));
+          setIsAndroid(/android/.test(ua));
           
           if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(console.error);
           
@@ -184,7 +212,77 @@
           return () => { clearInterval(timer); clearInterval(notifTimer); clearTimeout(timeout); };
         }, [notifConfig, entryTime, lastAction]);
 
-        // --- SISTEMA DE NOTIFICAÇÃO ---
+        // --- FUNÇÕES EXTRAS (CALENDÁRIO & ALARME) ---
+        const addToCalendar = () => {
+           const now = new Date();
+           const fmtNum = (n) => String(n).padStart(2, '0');
+           let title = "", details = "", dateObj = null;
+
+           if (entryTime && targetHours) { // Já entrou, agendar SAÍDA
+              const [h, m] = entryTime.split(':').map(Number);
+              dateObj = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h + targetHours, m);
+              title = "🔴 SAÍDA PONTO (Alarme)";
+              details = "Hora de registrar a saída!";
+           } else if (notifConfig.entryTimeStr) { // Não entrou, agendar ENTRADA
+              const [h, m] = notifConfig.entryTimeStr.split(':').map(Number);
+              dateObj = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+              title = "🟢 ENTRADA PONTO (Alarme)";
+              details = "Hora de registrar a entrada!";
+           } else {
+              alert("Registre o ponto ou configure o horário primeiro."); return;
+           }
+
+           const dateStr = dateObj.getFullYear() + fmtNum(dateObj.getMonth() + 1) + fmtNum(dateObj.getDate());
+           const timeStr = fmtNum(dateObj.getHours()) + fmtNum(dateObj.getMinutes()) + '00';
+           const endDateTime = dateStr + 'T' + fmtNum(dateObj.getHours()) + fmtNum(dateObj.getMinutes() + 10) + '00';
+           
+           const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dateStr}T${timeStr}/${endDateTime}&details=${encodeURIComponent(details)}&sf=true&output=xml`;
+           window.open(url, '_blank');
+        };
+
+        const setNativeAlarm = () => {
+           if (!isAndroid) { alert("Esta função é exclusiva para Android."); return; }
+           let h, m, title;
+           if (entryTime && targetHours) {
+              const [eh, em] = entryTime.split(':').map(Number);
+              const date = new Date(); date.setHours(eh + targetHours, em);
+              h = date.getHours(); m = date.getMinutes(); title = "Saída PontoWeb";
+           } else if (notifConfig.entryTimeStr) {
+              [h, m] = notifConfig.entryTimeStr.split(':').map(Number); title = "Entrada PontoWeb";
+           } else { alert("Configure o horário primeiro."); return; }
+           
+           window.location.href = `intent:#Intent;action=android.intent.action.SET_ALARM;i.android.intent.extra.alarm.HOUR=${h};i.android.intent.extra.alarm.MINUTES=${m};S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(title)};B.android.intent.extra.alarm.SKIP_UI=false;end`;
+        };
+
+        // --- SISTEMA DE NOTIFICAÇÃO (LOCAL & PUSH) ---
+        const requestPushPermission = () => {
+          if (!messaging) {
+            alert("Firebase não configurado. Adicione suas chaves no código.");
+            return;
+          }
+          Notification.requestPermission().then((permission) => {
+            if (permission === 'granted') {
+              console.log('Permissão concedida.');
+              // Pega o token e manda pro Apps Script
+              messaging.getToken({ vapidKey: 'SUA_VAPID_KEY_AQUI' }).then((currentToken) => {
+                if (currentToken) {
+                  console.log('Token obtido:', currentToken);
+                  // Envia para o backend para salvar
+                  if (params && params.id) {
+                     google.script.run.salvarFCMToken({ id: params.id, token: params.token, fcmToken: currentToken });
+                  }
+                } else {
+                  console.log('Nenhum token ID disponível.');
+                }
+              }).catch((err) => {
+                console.log('Erro ao obter token.', err);
+              });
+            } else {
+              alert('Permissão de notificação negada.');
+            }
+          });
+        };
+
         const startKeepAlive = () => {
            if (phantomAudioRef.current) {
               phantomAudioRef.current.volume = 0.05;
@@ -252,6 +350,9 @@
                  localStorage.setItem('ponto_auth_data', JSON.stringify({ id, token }));
                  setBolsistaName(r.nome); setEntryTime(r.entryTime); setExitTime(r.exitTime); setLastAction(r.lastAction); setTargetHours(Number(r.horasDia));
                  setStatus('ready'); initGPS();
+                 
+                 // Tenta registrar o token automaticamente se já tiver permissão
+                 if (Notification.permission === 'granted' && messaging) requestPushPermission();
               } else {
                  localStorage.removeItem('ponto_auth_data'); setStatus('waiting_link'); if(id && token) alert("Link inválido.");
               }
@@ -370,6 +471,22 @@
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 fade-in">
                    <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl">
                       <div className="flex justify-between items-center mb-6 border-b pb-2"><h3 className="font-bold text-lg flex items-center gap-2"><Icon.Bell/> Configurações</h3><button onClick={()=>setSettingsOpen(false)} className="text-gray-400 text-2xl">&times;</button></div>
+                      
+                      {/* NOVAS FUNÇÕES EXTRAS RESTAURADAS */}
+                      <div className="grid grid-cols-1 gap-3 mb-4">
+                         <button onClick={addToCalendar} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-indigo-700 active:scale-95">
+                           <Icon.Calendar/> {entryTime ? "Agendar Saída na Agenda" : "Agendar Entrada na Agenda"}
+                         </button>
+                         {isAndroid && (
+                            <button onClick={setNativeAlarm} className="w-full bg-orange-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-orange-700 active:scale-95">
+                              <Icon.Clock/> Definir Alarme no Android
+                            </button>
+                         )}
+                         <button onClick={requestPushPermission} className="w-full bg-yellow-500 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-yellow-600 active:scale-95">
+                           <Icon.Bell/> Ativar Push Notification
+                         </button>
+                      </div>
+
                       <form onSubmit={(e)=>{e.preventDefault(); const fd=new FormData(e.target); const c={enabled:notifConfig.enabled, entryTimeStr:fd.get('eT'), exitTimeStr:fd.get('xT'), reminderMins:Number(fd.get('rm'))}; setNotifConfig(c); localStorage.setItem('pontoWebConfig', JSON.stringify(c)); setSettingsOpen(false); if(c.enabled) startKeepAlive();}}>
                          <div className="space-y-4 mb-6">
                             <div><label className="block text-xs font-bold text-gray-500 uppercase">Entrada</label><input type="time" name="eT" defaultValue={notifConfig.entryTimeStr} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div>
