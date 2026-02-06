@@ -1,416 +1,165 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html>
   <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PontoWeb Unespar</title>
-    
-    <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#166534">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2983/2983818.png">
-    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/2983/2983818.png">
-
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- FIREBASE (Para Notificações) -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js"></script>
-
+    <base target="_top">
+    <meta charset="utf-8">
+    <title>Configuração de Link</title>
     <style>
-      body { background-color: #f0fdf4; color: #166534; font-family: sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; }
-      .spinner { border: 4px solid #dcfce7; width: 40px; height: 40px; border-radius: 50%; border-left-color: #16a34a; animation: spin 1s linear infinite; }
-      @keyframes spin { 100% { transform: rotate(360deg); } }
-      .fade-in { animation: fadeIn 0.3s ease-in; }
-      @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-      .bell-shake { animation: shake 2s infinite; transform-origin: top center; }
-      @keyframes shake { 0% { transform: rotate(0deg); } 10% { transform: rotate(10deg); } 20% { transform: rotate(-10deg); } 30% { transform: rotate(6deg); } 40% { transform: rotate(-6deg); } 50% { transform: rotate(0deg); } 100% { transform: rotate(0deg); } }
+      /* Estilos básicos para parecer um App limpo */
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f0f2f5;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        color: #333;
+      }
+
+      .card {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        width: 90%;
+        max-width: 400px;
+        text-align: center;
+      }
+
+      h2 { margin-top: 0; color: #1a73e8; }
+      p { color: #666; margin-bottom: 20px; }
+
+      input[type="text"] {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 15px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        box-sizing: border-box; /* Garante que padding não estoure a largura */
+        font-size: 16px;
+      }
+
+      button {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background 0.2s;
+        margin-bottom: 10px;
+      }
+
+      .btn-primary { background-color: #1a73e8; color: white; }
+      .btn-primary:hover { background-color: #1557b0; }
+
+      .btn-secondary { background-color: #e8f0fe; color: #1a73e8; }
+      .btn-secondary:hover { background-color: #d2e3fc; }
+
+      .hidden { display: none; }
+      
+      .error-msg { color: red; font-size: 0.9em; display: none; margin-bottom: 10px;}
     </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="text/babel">
-      const { useState, useEffect, useRef } = React;
 
-      // === CONFIGURAÇÕES ===
-      const API_URL = "https://script.google.com/macros/s/AKfycbyhvzFHFiUj0sSNOzD8wQft9y_yU8OuqN3SSUCfuiwYyzD8xx5JeEMSd9jjOMq-OpXTig/exec"; 
-      const CACHE_KEY_DATA = 'pontoweb_data_v1';
-      const CACHE_KEY_AUTH = 'pontoweb_auth_v1';
+    <div class="card">
       
-      const firebaseConfig = {
-        apiKey: "AIzaSyCn89LRlH1lksZ811--jb2jlB2iZS5NH1s",
-        authDomain: "pontoweb-dc8dd.firebaseapp.com",
-        projectId: "pontoweb-dc8dd",
-        storageBucket: "pontoweb-dc8dd.firebasestorage.app",
-        messagingSenderId: "465750633035",
-        appId: "1:465750633035:web:282efd14b807e2a3823bce"
-      };
-      const VAPID_KEY = 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0';
-
-      // Inicializa Firebase
-      let messaging = null;
-      try {
-        if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "SUA_API_KEY") {
-          firebase.initializeApp(firebaseConfig);
-          messaging = firebase.messaging();
-        }
-      } catch (e) {}
-
-      // Bridge de Comunicação
-      const ExternalBridge = {
-        request: async (action, payload = {}) => {
-          const response = await fetch(API_URL, {
-            method: 'POST',
-            redirect: "follow",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({ action, ...payload })
-          });
-          const json = await response.json();
-          if (json.error) throw new Error(json.error);
-          return json;
-        }
-      };
-
-      // Mock Google (compatibilidade)
-      if (typeof google === 'undefined') {
-        window.google = { script: { run: {
-            withSuccessHandler: (cb) => ({
-                withFailureHandler: (errCb) => ({
-                    getBolsistaInfo: (id, token) => ExternalBridge.request('getBolsistaInfo', { id, token }).then(cb).catch(errCb),
-                    registrarPonto: (p) => ExternalBridge.request('registrarPonto', p).then(cb).catch(errCb),
-                    salvarFCMToken: (p) => ExternalBridge.request('salvarToken', p).then(cb).catch(errCb),
-                    salvarConfiguracao: (p) => ExternalBridge.request('salvarConfiguracao', p).then(cb).catch(errCb)
-                })
-            })
-        }}};
-      }
-
-      const Icon = {
-        Map: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
-        Camera: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
-        Check: () => <svg className="w-16 h-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
-        Lock: () => <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>,
-        Bell: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-      };
-
-      function TimeClock() {
-        const [params, setParams] = useState(null);
-        const [bolsistaName, setBolsistaName] = useState('');
-        const [lastAction, setLastAction] = useState(null);
-        const [entryTime, setEntryTime] = useState(null);
-        const [exitTime, setExitTime] = useState(null);
-        const [location, setLocation] = useState(null);
-        const [status, setStatus] = useState('loading');
-        const [punchType, setPunchType] = useState(null);
-        const [result, setResult] = useState(null);
-        const [currentTime, setCurrentTime] = useState(new Date());
+      <!-- TELA 1: Configuração (se não tiver link salvo) -->
+      <div id="setupScreen">
+        <h2>Bem-vindo</h2>
+        <p>Você ainda não configurou seu link pessoal.</p>
         
-        const [settingsOpen, setSettingsOpen] = useState(false);
-        const [notifConfig, setNotifConfig] = useState({ enabled: false });
+        <input type="text" id="userLinkInput" placeholder="Ex: https://meusite.com">
+        <div id="errorMsg" class="error-msg">Por favor, insira um link válido.</div>
+        
+        <button class="btn-primary" onclick="salvarLink()">Salvar Link</button>
+      </div>
 
-        const videoRef = useRef(null);
+      <!-- TELA 2: Acesso (se já tiver link salvo) -->
+      <div id="accessScreen" class="hidden">
+        <h2>Seu Acesso</h2>
+        <p>Seu link pessoal está pronto.</p>
+        
+        <button class="btn-primary" onclick="irParaLink()">Acessar Agora</button>
+        <button class="btn-secondary" onclick="resetarLink()">Configurar Novo Link</button>
+      </div>
 
-        // Relógio independente
-        useEffect(() => {
-          const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-          return () => clearInterval(timer);
-        }, []);
+    </div>
 
-        // Inicialização com Cache Rápido
-        useEffect(() => {
-          if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(console.error);
+    <script>
+      // Chave para salvar no navegador do usuário
+      const STORAGE_KEY = 'meu_link_pessoal_v1';
 
-          // 1. Tenta carregar credenciais
-          const urlParams = new URLSearchParams(window.location.search);
-          const urlId = urlParams.get('id');
-          const urlToken = urlParams.get('token');
-          
-          let auth = null;
-          if (urlId && urlToken) {
-              auth = { id: urlId, token: urlToken };
-              localStorage.setItem(CACHE_KEY_AUTH, JSON.stringify(auth));
-          } else {
-              const saved = localStorage.getItem(CACHE_KEY_AUTH);
-              if (saved) auth = JSON.parse(saved);
-          }
+      // Elementos do DOM
+      const setupScreen = document.getElementById('setupScreen');
+      const accessScreen = document.getElementById('accessScreen');
+      const inputLink = document.getElementById('userLinkInput');
+      const errorMsg = document.getElementById('errorMsg');
 
-          if (auth) {
-             setParams(auth);
-             loadBolsista(auth.id, auth.token);
-             initGPS();
-          } else {
-             setStatus('no-link');
-          }
-        }, []);
+      // Ao carregar a página, verifica se já tem link
+      window.onload = function() {
+        const linkSalvo = localStorage.getItem(STORAGE_KEY);
+        
+        if (linkSalvo && linkSalvo.length > 0) {
+          mostrarTelaAcesso();
+        } else {
+          mostrarTelaConfig();
+        }
+      };
 
-        const loadBolsista = (id, token) => {
-           // 1. CARREGAMENTO INSTANTÂNEO (Cache)
-           const cached = localStorage.getItem(CACHE_KEY_DATA);
-           if (cached) {
-               const data = JSON.parse(cached);
-               applyUserData(data);
-               setStatus('ready');
-           }
+      function salvarLink() {
+        let url = inputLink.value.trim();
 
-           // 2. ATUALIZAÇÃO EM BACKGROUND (Rede)
-           if (navigator.onLine) {
-               google.script.run.withSuccessHandler(res => {
-                  if (res.nome) {
-                      localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(res));
-                      applyUserData(res);
-                      setStatus('ready');
-                  } else {
-                      if (!cached) setStatus('no-link'); // Só mostra erro se não tiver cache
-                  }
-               }).getBolsistaInfo(id, token);
-           } else if (!cached) {
-               // Sem cache e sem rede
-               setStatus('error-offline');
-           }
-        };
+        if (!url) {
+          mostrarErro("O campo não pode estar vazio.");
+          return;
+        }
 
-        const applyUserData = (data) => {
-           setBolsistaName(data.nome || '');
-           setEntryTime(data.entryTime || null);
-           setExitTime(data.exitTime || null);
-           setLastAction(data.lastAction || null);
-        };
+        // Adiciona https:// se o usuário esqueceu
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+          url = 'https://' + url;
+        }
 
-        const initGPS = () => {
-          if (!navigator.geolocation) return;
-          navigator.geolocation.getCurrentPosition(
-            (pos) => setLocation(pos.coords),
-            () => console.warn('GPS pendente'),
-            { enableHighAccuracy: true, timeout: 10000 }
-          );
-        };
-
-        const resetState = () => {
-           setResult(null);
-           setPunchType(null);
-           setStatus('loading');
-           if (params) loadBolsista(params.id, params.token);
-           initGPS();
-        };
-
-        const startCamera = async (type) => {
-          setPunchType(type);
-          setStatus('punching');
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-            if (videoRef.current) videoRef.current.srcObject = stream;
-          } catch(e) {
-            alert('Erro: Câmera necessária.');
-            setStatus('ready');
-          }
-        };
-
-        const confirm = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = 320; canvas.height = 240;
-          const ctx = canvas.getContext('2d');
-          if (videoRef.current) {
-             // Mantém o espelhamento solicitado
-             ctx.translate(320, 0);
-             ctx.scale(-1, 1);
-             ctx.drawImage(videoRef.current, 0, 0, 320, 240);
-             const stream = videoRef.current.srcObject;
-             if (stream) stream.getTracks().forEach(t => t.stop());
-          }
-          
-          setStatus('sending');
-
-          const payload = {
-            pessoaId: params.id,
-            token: params.token,
-            tipo: punchType,
-            lat: location ? location.latitude : '',
-            lng: location ? location.longitude : '',
-            prec: location ? location.accuracy : '',
-            fotoBase64: canvas.toDataURL('image/jpeg', 0.7)
-          };
-
-          if (!navigator.onLine) {
-              alert("Você está offline. Conecte-se à internet para registrar o ponto.");
-              setStatus('ready');
-              return;
-          }
-
-          google.script.run
-            .withSuccessHandler((res) => {
-               if(res.ok) { 
-                 setResult(res); 
-                 setStatus('success'); 
-                 // Atualiza cache local imediatamente para a UI ficar consistente
-                 const currentCache = JSON.parse(localStorage.getItem(CACHE_KEY_DATA) || '{}');
-                 currentCache.lastAction = punchType;
-                 if (punchType === 'Entrada') currentCache.entryTime = res.timestamp.split(' ')[1].substring(0,5);
-                 if (punchType === 'Saida') currentCache.exitTime = res.timestamp.split(' ')[1].substring(0,5);
-                 localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(currentCache));
-               } else { 
-                 alert("Erro: " + res.msg); 
-                 setStatus('ready'); 
-               }
-            })
-            .withFailureHandler((err) => {
-               alert("Erro de conexão: " + err.message);
-               setStatus('ready');
-            })
-            .registrarPonto(payload);
-        };
-
-        // --- SISTEMA DE NOTIFICAÇÃO ---
-        const requestPushPermission = () => {
-           if (!messaging) return alert("Erro Firebase");
-           Notification.requestPermission().then(async p => {
-               if (p === 'granted') {
-                   const reg = await navigator.serviceWorker.ready;
-                   const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
-                   if (token && params) {
-                       google.script.run.salvarFCMToken({ id: params.id, token: params.token, fcmToken: token });
-                       // Também salva configuração básica na nuvem
-                       const c = JSON.parse(localStorage.getItem('pontoWebConfig') || '{}');
-                       google.script.run.salvarConfiguracao({
-                           id: params.id, token: params.token, 
-                           entrada: c.entryTimeStr || '08:00', 
-                           saida: c.exitTimeStr || '17:00', 
-                           antecedencia: 10 
-                       });
-                       alert("Notificações ativadas com sucesso!");
-                   }
-               }
-           });
-        };
-
-        // --- RENDERIZADORES ---
-
-        if (status === 'no-link') return (
-          <div className="h-screen flex items-center justify-center p-4 text-center">
-            <div>
-              <h1 className="text-xl font-bold text-red-600">Link Inválido</h1>
-              <p className="text-gray-600 mt-2">Use o link fornecido pelo gestor.</p>
-            </div>
-          </div>
-        );
-
-        if (status === 'success') return (
-          <div className="h-screen flex flex-col items-center justify-center bg-white p-6 text-center fade-in">
-            <Icon.Check />
-            <h2 className="text-2xl font-bold mt-4 text-green-700">Ponto Registrado!</h2>
-            <p className="text-4xl font-bold mt-2 text-gray-800">{result.timestamp.split(' ')[1]}</p>
-            <p className="text-gray-500 mt-1">{result.status}</p>
-            <button onClick={resetState} className="mt-10 px-8 py-3 bg-green-50 text-green-700 font-bold rounded-full hover:bg-green-100 transition-colors shadow-sm">Voltar</button>
-          </div>
-        );
-
-        if (status === 'punching') return (
-          <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-50 fade-in">
-            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover opacity-80 scale-x-[-1]"></video>
-            <div className="absolute bottom-10 w-full px-6 flex gap-4">
-              <button onClick={() => { if(videoRef.current?.srcObject) videoRef.current.srcObject.getTracks().forEach(t=>t.stop()); setStatus('ready'); }} className="flex-1 bg-white text-black py-4 rounded-xl font-bold shadow-lg">Cancelar</button>
-              <button onClick={confirm} className="flex-1 bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-transform"><Icon.Camera/> Confirmar</button>
-            </div>
-            <div className="absolute top-10 text-white font-bold text-xl drop-shadow-md bg-black/30 px-4 py-2 rounded-full backdrop-blur-sm">A registar {punchType}</div>
-          </div>
-        );
-
-        const isEntryBlocked = lastAction === 'Entrada' || lastAction === 'Intervalo-Fim'; 
-        const isExitBlocked = lastAction === 'Saida';
-
-        return (
-          <div className="min-h-screen max-w-md mx-auto bg-white shadow-xl flex flex-col relative">
-            <div className="bg-green-600 p-6 text-white text-center rounded-b-3xl shadow-lg z-10 transition-all relative">
-              
-              {/* Botão Discreto de Configuração */}
-              <button onClick={() => setSettingsOpen(true)} className="absolute top-4 right-4 text-green-200 hover:text-white p-2">
-                  <Icon.Bell />
-              </button>
-
-              <h1 className="text-2xl font-bold">PontoWeb Unespar</h1>
-              
-              <div className="flex flex-col items-center mt-2 mb-1">
-                <span className="text-4xl font-mono font-bold tracking-widest drop-shadow-md">
-                  {currentTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                </span>
-                <span className="text-xs text-green-100 uppercase tracking-wide font-medium mt-1">
-                  {currentTime.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                </span>
-              </div>
-
-              <div className="flex justify-center items-center gap-2 text-sm opacity-90 mt-2 bg-green-700/30 py-1 px-3 rounded-full inline-flex">
-                <Icon.Map />
-                {status === 'loading' ? 'Conectando...' : (location ? 'Localização Ativa' : 'Buscando GPS...')}
-              </div>
-            </div>
-
-            {status === 'sending' && (
-              <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center backdrop-blur-sm fade-in">
-                 <div className="spinner mb-4"></div>
-                 <p className="text-green-700 font-bold animate-pulse">A enviar dados...</p>
-              </div>
-            )}
-
-            <div className="flex-1 p-6 flex flex-col justify-center gap-4">
-              <div className="text-center mb-2">
-                <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Bolsista Identificado</p>
-                <h3 className="text-xl font-bold text-gray-800">{bolsistaName || '...'}</h3>
-                
-                <div className="flex gap-2 justify-center mt-2 flex-wrap">
-                  {entryTime && <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm border border-blue-100">Entrada: {entryTime}</div>}
-                  {exitTime && <div className="bg-orange-50 text-orange-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm border border-orange-100">Saída: {exitTime}</div>}
-                </div>
-              </div>
-              
-              <button disabled={status!=='ready' || isEntryBlocked} onClick={() => startCamera('Entrada')} className="bg-green-50 text-green-700 border-2 border-green-200 p-5 rounded-2xl font-bold text-xl hover:bg-green-100 hover:border-green-300 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 shadow-sm">
-                {isEntryBlocked ? 'ENTRADA (Registrada)' : 'ENTRADA'}
-              </button>
-              
-              <button disabled={status!=='ready' || isExitBlocked} onClick={() => startCamera('Saida')} className="bg-red-50 text-red-700 border-2 border-red-200 p-5 rounded-2xl font-bold text-xl hover:bg-red-100 hover:border-red-300 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100 disabled:bg-gray-100 disabled:border-gray-200 disabled:text-gray-400 shadow-sm">
-                 {isExitBlocked ? 'SAÍDA (Registrada)' : 'SAÍDA'}
-              </button>
-              
-              <div className="grid grid-cols-2 gap-4 mt-2">
-                <button disabled={status!=='ready'} onClick={() => startCamera('Intervalo-Inicio')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border-2 border-gray-100 hover:border-gray-300 hover:bg-gray-100 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100">Início Interv.</button>
-                <button disabled={status!=='ready'} onClick={() => startCamera('Intervalo-Fim')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border-2 border-gray-100 hover:border-gray-300 hover:bg-gray-100 transition-all active:scale-95 disabled:opacity-50 disabled:scale-100">Fim Interv.</button>
-              </div>
-            </div>
-            
-            <div className="p-6 text-center border-t border-gray-100 mt-2">
-               <div className="text-[10px] text-gray-500 mb-1 flex flex-col items-center justify-center gap-1 opacity-80">
-                 <div className="flex items-center gap-1"><Icon.Lock /><span className="font-semibold">Privacidade e Segurança</span></div>
-                 <span className="leading-tight max-w-[280px]">Este aplicativo atende e respeita as normas da Política de Privacidade e Proteção de Dados (LGPD).</span>
-               </div>
-               <div className="text-[9px] text-gray-300 mt-2 font-mono">Versão 3.5</div>
-            </div>
-
-            {settingsOpen && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 fade-in">
-                   <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl">
-                      <div className="flex justify-between items-center mb-6 border-b pb-2">
-                          <h3 className="font-bold text-lg flex items-center gap-2"><Icon.Bell/> Notificações</h3>
-                          <button onClick={()=>setSettingsOpen(false)} className="text-gray-400 text-2xl">&times;</button>
-                      </div>
-                      <button onClick={requestPushPermission} className="w-full py-3 bg-yellow-500 text-white rounded-xl font-bold mb-4 shadow-sm active:scale-95">Ativar/Renovar Notificações</button>
-                      <form onSubmit={(e)=>{e.preventDefault(); const fd=new FormData(e.target); const c={entryTimeStr:fd.get('eT'), exitTimeStr:fd.get('xT')}; localStorage.setItem('pontoWebConfig', JSON.stringify({enabled:true, ...c})); if(params) google.script.run.salvarConfiguracao({id:params.id, token:params.token, entrada:c.entryTimeStr, saida:c.exitTimeStr, antecedencia:10}); setSettingsOpen(false);}}>
-                         <div className="space-y-4 mb-6">
-                            <div><label className="block text-xs font-bold text-gray-500 uppercase">Entrada</label><input type="time" name="eT" className="w-full p-3 bg-gray-50 border rounded-xl text-center"/></div>
-                            <div><label className="block text-xs font-bold text-gray-500 uppercase">Saída</label><input type="time" name="xT" className="w-full p-3 bg-gray-50 border rounded-xl text-center"/></div>
-                         </div>
-                         <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow">Salvar</button>
-                      </form>
-                   </div>
-                </div>
-            )}
-          </div>
-        );
+        // Salva no navegador
+        localStorage.setItem(STORAGE_KEY, url);
+        mostrarTelaAcesso();
       }
 
-      const root = ReactDOM.createRoot(document.getElementById('root'));
-      root.render(<Main />);
+      function irParaLink() {
+        const url = localStorage.getItem(STORAGE_KEY);
+        if (url) {
+          // Abre na mesma aba (ou use window.open(url, '_blank') para nova aba)
+          window.location.href = url;
+        } else {
+          resetarLink();
+        }
+      }
+
+      function resetarLink() {
+        localStorage.removeItem(STORAGE_KEY);
+        inputLink.value = ""; // Limpa o input
+        mostrarTelaConfig();
+      }
+
+      // Funções de UI
+      function mostrarTelaAcesso() {
+        setupScreen.classList.add('hidden');
+        accessScreen.classList.remove('hidden');
+        errorMsg.style.display = 'none';
+      }
+
+      function mostrarTelaConfig() {
+        accessScreen.classList.add('hidden');
+        setupScreen.classList.remove('hidden');
+      }
+      
+      function mostrarErro(msg) {
+        errorMsg.textContent = msg;
+        errorMsg.style.display = 'block';
+      }
     </script>
   </body>
 </html>
