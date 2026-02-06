@@ -92,8 +92,9 @@
             getBolsistaInfo: (id, token) => ExternalBridge.request('getBolsistaInfo', { id, token }).then(success).catch(failure || console.error),
             registrarPonto: (payload) => ExternalBridge.request('registrarPonto', payload).then(success).catch(failure || console.error),
             salvarFCMToken: (payload) => ExternalBridge.request('salvarToken', payload).then(success).catch(failure || console.error),
-            // NOVO: Função para salvar configurações na nuvem
-            salvarConfiguracao: (payload) => ExternalBridge.request('salvarConfiguracao', payload).then(success).catch(failure || console.error)
+            salvarConfiguracao: (payload) => ExternalBridge.request('salvarConfiguracao', payload).then(success).catch(failure || console.error),
+            // NOVO: Função para testar push direto do servidor
+            testarPush: (payload) => ExternalBridge.request('testarPush', payload).then(success).catch(failure || console.error)
           };
         };
         window.google = { script: { run: createRunner() } };
@@ -112,7 +113,8 @@
         Download: () => <svg className="w-6 h-6 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>,
         LogOut: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>,
         Calendar: () => <svg className="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>,
-        Clock: () => <svg className="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Clock: () => <svg className="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
+        Cloud: () => <svg className="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
       };
 
       // --- COMPONENTE: GUIA DE INSTALAÇÃO ---
@@ -229,48 +231,30 @@
            }
         }, [status]);
 
-        const addToCalendar = () => {
-           const now = new Date();
-           const fmtNum = (n) => String(n).padStart(2, '0');
-           let title = "", details = "", dateObj = null;
-           if (entryTime && targetHours) { 
-              const [h, m] = entryTime.split(':').map(Number);
-              dateObj = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h + targetHours, m);
-              title = "🔴 SAÍDA PONTO (Alarme)";
-              details = "Hora de registrar a saída!";
-           } else if (notifConfig.entryTimeStr) { 
-              const [h, m] = notifConfig.entryTimeStr.split(':').map(Number);
-              dateObj = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
-              title = "🟢 ENTRADA PONTO (Alarme)";
-              details = "Hora de registrar a entrada!";
-           } else { alert("Registre o ponto ou configure o horário primeiro."); return; }
-           const dateStr = dateObj.getFullYear() + fmtNum(dateObj.getMonth() + 1) + fmtNum(dateObj.getDate());
-           const timeStr = fmtNum(dateObj.getHours()) + fmtNum(dateObj.getMinutes()) + '00';
-           const endDateTime = dateStr + 'T' + fmtNum(dateObj.getHours()) + fmtNum(dateObj.getMinutes() + 10) + '00';
-           const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dateStr}T${timeStr}/${endDateTime}&details=${encodeURIComponent(details)}&sf=true&output=xml`;
-           window.open(url, '_blank');
-        };
-
-        const setNativeAlarm = () => {
-           if (!isAndroid) { alert("Esta função é exclusiva para Android."); return; }
-           let h, m, title;
-           if (entryTime && targetHours) {
-              const [eh, em] = entryTime.split(':').map(Number);
-              const date = new Date(); date.setHours(eh + targetHours, em);
-              h = date.getHours(); m = date.getMinutes(); title = "Saída PontoWeb";
-           } else if (notifConfig.entryTimeStr) {
-              [h, m] = notifConfig.entryTimeStr.split(':').map(Number); title = "Entrada PontoWeb";
-           } else { alert("Configure o horário primeiro."); return; }
-           window.location.href = `intent:#Intent;action=android.intent.action.SET_ALARM;i.android.intent.extra.alarm.HOUR=${h};i.android.intent.extra.alarm.MINUTES=${m};S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(title)};B.android.intent.extra.alarm.SKIP_UI=false;end`;
-        };
-
         const testNotification = () => {
            if (Notification.permission !== 'granted') {
               alert("⚠️ Permissão não concedida. Clique em 'Ativar Push Notification' primeiro.");
               return;
            }
-           // Adiciona timestamp para evitar bloqueio por duplicidade e testa o SW se disponível
-           triggerAppAlert("Teste PontoWeb", "Notificação de teste! 🔔 " + new Date().toLocaleTimeString());
+           triggerAppAlert("Teste PontoWeb", "Notificação de teste LOCAL! 🔔 " + new Date().toLocaleTimeString());
+        };
+
+        const testRemotePush = () => {
+            if (!params?.id) { alert("Erro: Login necessário."); return; }
+            if (confirm("Isso vai pedir ao servidor para enviar um Push agora. FECHE O APP IMEDIATAMENTE após clicar em OK para testar se chega com ele fechado.")) {
+                setLoadingPush(true);
+                google.script.run
+                    .withSuccessHandler((res) => {
+                        // Não mostramos alert aqui para não reabrir o app se o usuário fechou
+                        console.log("Sucesso no envio do comando de push.");
+                        setLoadingPush(false);
+                    })
+                    .withFailureHandler(e => {
+                        alert("Erro no servidor: " + e);
+                        setLoadingPush(false);
+                    })
+                    .testarPush({ id: params.id, token: params.token });
+            }
         };
 
         // --- SISTEMA DE NOTIFICAÇÃO (DIAGNÓSTICO COMPLETO) ---
@@ -278,52 +262,42 @@
           if (loadingPush) return;
           setLoadingPush(true);
 
-          // Passo 1: Verificar se o Firebase carregou
           if (!messaging) {
-            alert("ERRO: O Firebase não foi inicializado. Verifique se você está conectado à internet e se recarregou a página.");
+            alert("ERRO: O Firebase não foi inicializado.");
             setLoadingPush(false);
             return;
           }
 
-          // Passo 2: Verificar suporte do navegador
           if (!('serviceWorker' in navigator)) {
-             alert("ERRO: Seu navegador não suporta Service Workers (necessário para Push).");
+             alert("ERRO: Seu navegador não suporta Service Workers.");
              setLoadingPush(false);
              return;
           }
 
           try {
-            // Passo 3: Pedir permissão ao usuário
             const permission = await Notification.requestPermission();
             
             if (permission !== 'granted') {
-              alert('Permissão bloqueada (' + permission + '). Toque no cadeado 🔒 na barra de endereço e libere as Notificações.');
+              alert('Permissão bloqueada (' + permission + ').');
               setLoadingPush(false);
               return;
             }
 
-            // Passo 4: Garantir que o Service Worker está pronto
-            alert("Permissão OK. Registrando Service Worker...");
+            alert("Permissão OK. Registrando...");
             
             let registration;
             try {
-                // Força o registro para garantir que o arquivo sw.js existe e é acessível
                 registration = await navigator.serviceWorker.register('./sw.js');
-                
-                // Aguarda ele estar pronto (timeout de 10s para não travar para sempre)
-                alert("SW registrado. Aguardando ativação (pode demorar)...");
                 const readyPromise = navigator.serviceWorker.ready;
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Tempo limite excedido")), 10000));
-                
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Tempo limite")), 10000));
                 registration = await Promise.race([readyPromise, timeoutPromise]);
             } catch (e) {
-                alert("ERRO NO SW: " + e.message + ". Verifique se o arquivo sw.js está na pasta correta no GitHub.");
+                alert("ERRO NO SW: " + e.message);
                 setLoadingPush(false);
                 return;
             }
 
-            // Passo 5: Pedir o Token ao Firebase
-            alert("Conectado ao SW. Gerando token Firebase...");
+            alert("Conectado. Gerando token...");
             
             const currentToken = await messaging.getToken({ 
                 vapidKey: 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0',
@@ -331,12 +305,10 @@
             });
 
             if (currentToken) {
-                console.log('Token:', currentToken);
-                // Passo 6: Enviar para o Apps Script
                 if (params && params.id) {
                     google.script.run
                         .withSuccessHandler(() => {
-                            alert("✅ SUCESSO! Seu celular está configurado para receber avisos.");
+                            alert("✅ SUCESSO! Configurado para receber avisos.");
                             setLoadingPush(false);
                         })
                         .withFailureHandler((e) => {
@@ -344,18 +316,15 @@
                             setLoadingPush(false);
                         })
                         .salvarFCMToken({ id: params.id, token: params.token, fcmToken: currentToken });
-                } else {
-                    alert("Token gerado: " + currentToken.slice(0,15) + "... (Mas usuário não está logado)");
-                    setLoadingPush(false);
                 }
             } else {
-                alert("Aviso: Nenhum token foi gerado. Tente limpar os dados do site e tentar novamente.");
+                alert("Aviso: Nenhum token foi gerado.");
                 setLoadingPush(false);
             }
 
           } catch (err) {
             console.error(err);
-            alert("ERRO TÉCNICO: " + err.message + ". Tente fechar e abrir o app novamente.");
+            alert("ERRO TÉCNICO: " + err.message);
             setLoadingPush(false);
           }
         };
@@ -371,34 +340,17 @@
 
         const triggerAppAlert = (title, body) => {
            const now = Date.now();
-           // Ignora o bloqueio de 5 minutos APENAS se for um teste
            if (title !== "Teste PontoWeb" && lastNotifRef.current && lastNotifRef.current.body === body && (now - lastNotifRef.current.time < 300000)) return;
-           
            if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
            lastNotifRef.current = { body, time: now };
-           
-           // Alerta Visual no App
            setActiveAlert({ title, body });
            setTimeout(() => setActiveAlert(null), 15000);
-           
-           // Notificação do Sistema
            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-              // Tenta via Service Worker primeiro (Melhor para Android)
               if ('serviceWorker' in navigator) {
                  navigator.serviceWorker.ready.then(registration => {
-                    registration.showNotification(title, { 
-                       body, 
-                       icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', 
-                       tag: 'pontoweb',
-                       vibrate: [300, 100, 300]
-                    });
-                 }).catch(() => {
-                    // Fallback se SW falhar
-                    new Notification(title, { body, icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', tag: 'pontoweb' });
-                 });
-              } else {
-                 new Notification(title, { body, icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', tag: 'pontoweb' });
-              }
+                    registration.showNotification(title, { body, icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', tag: 'pontoweb', vibrate: [300, 100, 300] });
+                 }).catch(() => new Notification(title, { body, icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', tag: 'pontoweb' }));
+              } else new Notification(title, { body, icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', tag: 'pontoweb' });
            }
         };
 
@@ -407,42 +359,31 @@
            
            const now = new Date();
            const totalMin = now.getHours() * 60 + now.getMinutes();
-           
-           // Tolerância de 2 minutos para compensar "soneca" do navegador
            const isTime = (target) => totalMin >= target && totalMin <= target + 2;
-           
            let nextAlertText = "Sem alertas próximos";
 
-           // 1. Verificação de Entrada
            if (notifConfig.entryTimeStr && !lastAction) {
               const [h, m] = notifConfig.entryTimeStr.split(':').map(Number);
               const target = h * 60 + m;
               const reminderTime = target - notifConfig.reminderMins;
-              
-              if (totalMin < reminderTime) nextAlertText = `Lembrete de Entrada às ${Math.floor(reminderTime/60)}:${String(reminderTime%60).padStart(2,'0')}`;
-              
+              if (totalMin < reminderTime) nextAlertText = `Entrada às ${Math.floor(reminderTime/60)}:${String(reminderTime%60).padStart(2,'0')}`;
               if (isTime(reminderTime)) triggerAppAlert("⏰ LEMBRETE", `Faltam ${notifConfig.reminderMins} min para entrar.`);
               if (isTime(target + 5)) triggerAppAlert("⚠️ ATRASO", "Passaram 5 minutos do horário!");
            }
 
-           // 2. Verificação de Saída
            let exitTarget = null;
            if (notifConfig.exitTimeStr) {
-               const [h, m] = notifConfig.exitTimeStr.split(':').map(Number);
-               exitTarget = h * 60 + m;
+               const [h, m] = notifConfig.exitTimeStr.split(':').map(Number); exitTarget = h * 60 + m;
            } else if (entryTime && targetHours) {
-               const [h, m] = entryTime.split(':').map(Number);
-               exitTarget = (h * 60 + m) + (targetHours * 60);
+               const [h, m] = entryTime.split(':').map(Number); exitTarget = (h * 60 + m) + (targetHours * 60);
            }
 
            if (exitTarget && lastAction !== 'Saida') {
               const reminderTime = exitTarget - notifConfig.reminderMins;
-              if (totalMin < reminderTime) nextAlertText = `Lembrete de Saída às ${Math.floor(reminderTime/60)}:${String(reminderTime%60).padStart(2,'0')}`;
-              
+              if (totalMin < reminderTime) nextAlertText = `Saída às ${Math.floor(reminderTime/60)}:${String(reminderTime%60).padStart(2,'0')}`;
               if (isTime(reminderTime)) triggerAppAlert("🚪 SAÍDA PRÓXIMA", `Prepare-se para sair em ${notifConfig.reminderMins} min.`);
               if (isTime(exitTarget)) triggerAppAlert("✅ FIM DO EXPEDIENTE", "Horário cumprido! Pode registrar saída.");
            }
-           
            setNextAlertInfo(nextAlertText);
         };
 
@@ -521,13 +462,14 @@
                    <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl">
                       <div className="flex justify-between items-center mb-6 border-b pb-2"><h3 className="font-bold text-lg flex items-center gap-2"><Icon.Bell/> Configurações</h3><button onClick={()=>setSettingsOpen(false)} className="text-gray-400 text-2xl">&times;</button></div>
                       <div className="grid grid-cols-1 gap-3 mb-4">
-                         <button onClick={addToCalendar} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-indigo-700 active:scale-95"><Icon.Calendar/> {entryTime ? "Agendar Saída na Agenda" : "Agendar Entrada na Agenda"}</button>
-                         {isAndroid && (<button onClick={setNativeAlarm} className="w-full bg-orange-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-orange-700 active:scale-95"><Icon.Clock/> Definir Alarme no Android</button>)}
                          <button type="button" onClick={requestPushPermission} disabled={loadingPush} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 ${loadingPush ? 'bg-gray-400 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600'} text-white`}>
                            {loadingPush ? 'Ativando...' : <><Icon.Bell/> Ativar Push Notification</>}
                          </button>
                          <button onClick={testNotification} className="w-full bg-blue-100 text-blue-700 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-blue-200 active:scale-95">
                            <Icon.Bell/> Testar Notificação (Local)
+                         </button>
+                         <button onClick={testRemotePush} className="w-full bg-indigo-100 text-indigo-700 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-indigo-200 active:scale-95">
+                           <Icon.Cloud/> Testar Push (Nuvem)
                          </button>
                       </div>
                       <form onSubmit={(e)=>{
@@ -597,3 +539,32 @@
     </script>
   </body>
 </html>
+```
+
+### Código Backend Necessário (`Código.gs`)
+
+Você precisa atualizar seu backend para receber esse pedido de teste. Adicione/atualize estas partes no seu Google Apps Script:
+
+1.  No **`doPost`**, adicione a rota para `testarPush`:
+    ```javascript
+    } else if (data.action === 'testarPush') { // <--- ADICIONE ISTO
+      result = testarPush_(data);
+    }
+    ```
+
+2.  No final do arquivo, adicione a função `testarPush_`:
+    ```javascript
+    function testarPush_(data) {
+      const { id, token } = data;
+      // ... (Lógica de busca do usuário igual salvarToken_)
+      
+      // Quando encontrar o usuário e validar:
+      // ...
+      const userToken = values[i][headers.indexOf('FCMToken')];
+      if (userToken) {
+         enviarPushFCM(userToken, "Teste de Servidor 🚀", "Se você leu isso com o app fechado, o sistema está 100%!");
+         return { success: true, msg: "Push enviado! Verifique o celular." };
+      } else {
+         throw new Error("Token Push não encontrado. Ative as notificações novamente.");
+      }
+    }
