@@ -264,21 +264,28 @@
           Notification.requestPermission().then((permission) => {
             if (permission === 'granted') {
               console.log('Permissão concedida.');
-              // ⚠️⚠️ SUBSTITUA 'SUA_VAPID_KEY_AQUI' PELA CHAVE GERADA NO CONSOLE DO FIREBASE (Aba Cloud Messaging > Web Push Certificates)
-              messaging.getToken({ vapidKey: 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0' }).then((currentToken) => {
-                if (currentToken) {
-                  console.log('Token obtido:', currentToken);
-                  // Envia para o backend para salvar
-                  if (params && params.id) {
-                     google.script.run.salvarFCMToken({ id: params.id, token: params.token, fcmToken: currentToken });
-                     alert("Notificações Push ativadas com sucesso!");
-                  }
-                } else {
-                  console.log('Nenhum token ID disponível.');
-                }
-              }).catch((err) => {
-                console.log('Erro ao obter token.', err);
-                alert("Erro ao ativar notificações: " + err.message);
+              
+              // FIX: Usa o Service Worker atual (sw.js) em vez de procurar o padrão (firebase-messaging-sw.js)
+              navigator.serviceWorker.ready.then((registration) => {
+                  // ⚠️⚠️ SUBSTITUA 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0' PELA CHAVE GERADA NO CONSOLE DO FIREBASE (Aba Cloud Messaging > Web Push Certificates)
+                  messaging.getToken({ 
+                    vapidKey: 'SUA_VAPID_KEY_AQUI',
+                    serviceWorkerRegistration: registration 
+                  }).then((currentToken) => {
+                    if (currentToken) {
+                      console.log('Token obtido:', currentToken);
+                      // Envia para o backend para salvar
+                      if (params && params.id) {
+                         google.script.run.salvarFCMToken({ id: params.id, token: params.token, fcmToken: currentToken });
+                         alert("Notificações Push ativadas com sucesso!");
+                      }
+                    } else {
+                      console.log('Nenhum token ID disponível.');
+                    }
+                  }).catch((err) => {
+                    console.log('Erro ao obter token.', err);
+                    alert("Erro ao ativar notificações: " + err.message);
+                  });
               });
             } else {
               alert('Permissão de notificação negada.');
