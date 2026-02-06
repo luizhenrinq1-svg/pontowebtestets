@@ -287,7 +287,7 @@
              audio.play().catch(()=>{});
            } catch(e) {}
 
-           if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
+           if (navigator.vibrate) navigator.vibrate([1000, 500, 1000]); // Vibração mais longa para ser notada
            lastNotifRef.current = { body, time: now };
            
            setActiveAlert({ title, body });
@@ -412,7 +412,7 @@
                      <li className="flex gap-3"><span className="bg-gray-100 font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0">1</span><span>Saia do app e vá para a tela inicial.</span></li>
                      <li className="flex gap-3"><span className="bg-gray-100 font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0">2</span><span><strong>Toque e segure</strong> o ícone do PontoWeb.</span></li>
                      <li className="flex gap-3"><span className="bg-gray-100 font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0">3</span><span>Toque em <strong>(i)</strong> ou <strong>Informações do App</strong>.</span></li>
-                     <li className="flex gap-3"><span className="bg-gray-100 font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0">4</span><span>Vá em <strong>Notificações</strong> e ative <strong>Som</strong> e <strong>Vibração</strong> para todos os canais.</span></li>
+                     <li className="flex gap-3"><span className="bg-gray-100 font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0">4</span><span>Vá em <strong>Notificações</strong> e garanta que <strong>Vibração</strong> esteja ativada. <br/><span className="text-xs text-red-500">(Dica: Verifique se "Vibrar ao tocar" está ativo nas configurações de Som do celular)</span></span></li>
                    </ol>
                    <button onClick={()=>setShowSoundTutorial(false)} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Entendi</button>
                  </div>
