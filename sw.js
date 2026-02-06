@@ -1,4 +1,8 @@
-const CACHE_NAME = 'pontoweb-unified-v1';
+// Importa as bibliotecas do Firebase para o Service Worker
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
+
+const CACHE_NAME = 'pontoweb-unified-v2-firebase';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -9,6 +13,39 @@ const ASSETS_TO_CACHE = [
   'https://cdn.tailwindcss.com',
   'https://cdn-icons-png.flaticon.com/512/2983/2983818.png'
 ];
+
+// Configuração do Firebase no Service Worker (Deve ser igual ao index.html)
+// ⚠️ PREENCHA AQUI TAMBÉM
+const firebaseConfig = {
+  apiKey: "SUA_API_KEY",
+  authDomain: "SEU_PROJETO.firebaseapp.com",
+  projectId: "SEU_PROJECT_ID",
+  storageBucket: "SEU_PROJETO.appspot.com",
+  messagingSenderId: "SEU_SENDER_ID",
+  appId: "SEU_APP_ID"
+};
+
+// Inicializa Firebase no SW se configurado
+try {
+  if (firebaseConfig.apiKey !== "SUA_API_KEY") {
+    firebase.initializeApp(firebaseConfig);
+    const messaging = firebase.messaging();
+
+    // Manipula mensagens quando o app está FECHADO ou em SEGUNDO PLANO
+    messaging.onBackgroundMessage((payload) => {
+      console.log('Mensagem em background recebida: ', payload);
+      const notificationTitle = payload.notification.title;
+      const notificationOptions = {
+        body: payload.notification.body,
+        icon: './icon.png' // Certifique-se de ter um ícone
+      };
+
+      self.registration.showNotification(notificationTitle, notificationOptions);
+    });
+  }
+} catch(e) { console.log('Firebase SW config pendente'); }
+
+// --- CACHE E OFFLINE (Padrão) ---
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
