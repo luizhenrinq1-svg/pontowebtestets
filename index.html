@@ -45,10 +45,9 @@
       const { useState, useEffect, useRef } = React;
 
       // ======================================================================
-      // ⚠️ 1. IMPORTANTE: VERIFIQUE SE ESTA URL ESTÁ CORRETA (DO SEU WEB APP)
+      // CONFIGURAÇÃO GERAL
       const API_URL = "https://script.google.com/macros/s/AKfycbyhvzFHFiUj0sSNOzD8wQft9y_yU8OuqN3SSUCfuiwYyzD8xx5JeEMSd9jjOMq-OpXTig/exec"; 
       
-      // ⚠️ 2. DADOS DO FIREBASE
       const firebaseConfig = {
         apiKey: "AIzaSyCn89LRlH1lksZ811--jb2jlB2iZS5NH1s",
         authDomain: "pontoweb-dc8dd.firebaseapp.com",
@@ -58,7 +57,6 @@
         appId: "1:465750633035:web:282efd14b807e2a3823bce"
       };
       
-      // Chave VAPID fornecida por você
       const VAPID_KEY = 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0';
       // ======================================================================
 
@@ -74,7 +72,7 @@
       const ExternalBridge = {
         request: async (action, payload = {}) => {
           if (!API_URL.startsWith('http')) {
-            alert("ERRO DE CONFIGURAÇÃO: URL da API inválida no index.html.");
+            alert("ERRO DE CONFIGURAÇÃO: URL da API inválida.");
             throw new Error("URL não configurada");
           }
           const response = await fetch(API_URL, {
@@ -95,8 +93,7 @@
             getBolsistaInfo: (id, token) => ExternalBridge.request('getBolsistaInfo', { id, token }).then(success).catch(failure || console.error),
             registrarPonto: (payload) => ExternalBridge.request('registrarPonto', payload).then(success).catch(failure || console.error),
             salvarFCMToken: (payload) => ExternalBridge.request('salvarToken', payload).then(success).catch(failure || console.error),
-            salvarConfiguracao: (payload) => ExternalBridge.request('salvarConfiguracao', payload).then(success).catch(failure || console.error),
-            testarPush: (payload) => ExternalBridge.request('testarPush', payload).then(success).catch(failure || console.error)
+            salvarConfiguracao: (payload) => ExternalBridge.request('salvarConfiguracao', payload).then(success).catch(failure || console.error)
           };
         };
         window.google = { script: { run: createRunner() } };
@@ -113,10 +110,7 @@
         Zap: () => <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>,
         Link: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>,
         Download: () => <svg className="w-6 h-6 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>,
-        LogOut: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>,
-        Calendar: () => <svg className="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>,
-        Clock: () => <svg className="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
-        Cloud: () => <svg className="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+        LogOut: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
       };
 
       // --- COMPONENTE: GUIA DE INSTALAÇÃO ---
@@ -188,12 +182,10 @@
         
         const videoRef = useRef(null);
         const lastNotifRef = useRef(null);
-        const wakeLockRef = useRef(null);
-        const phantomAudioRef = useRef(null);
         const [isIOS, setIsIOS] = useState(false);
         const [isAndroid, setIsAndroid] = useState(false);
 
-        // 1. Setup Inicial e Relógio
+        // Setup Inicial
         useEffect(() => {
           const ua = navigator.userAgent.toLowerCase();
           setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent));
@@ -201,7 +193,6 @@
           
           if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(console.error);
           
-          // Carregar configurações (uma vez)
           const saved = localStorage.getItem('pontoWebConfig');
           if (saved) {
              setNotifConfig(prev => ({...prev, ...JSON.parse(saved)}));
@@ -215,13 +206,13 @@
           return () => clearInterval(timer);
         }, []); 
 
-        // 2. Loop de Verificação de Notificações
+        // Verificação Visual de Alertas
         useEffect(() => {
            const notifTimer = setInterval(checkNotifications, 5000); 
            return () => clearInterval(notifTimer);
         }, [notifConfig, entryTime, lastAction]);
 
-        // 3. Timeout de Segurança
+        // Timeout de Segurança
         useEffect(() => {
            if (status === 'loading') {
               const timeout = setTimeout(() => {
@@ -231,23 +222,6 @@
               return () => clearTimeout(timeout);
            }
         }, [status]);
-
-        const testRemotePush = () => {
-            if (!params?.id) { alert("Erro: Login necessário."); return; }
-            if (confirm("Isso vai pedir ao servidor para enviar um Push agora. FECHE O APP IMEDIATAMENTE após clicar em OK para testar.")) {
-                setLoadingPush(true);
-                google.script.run
-                    .withSuccessHandler((res) => {
-                        console.log("Sucesso no envio do comando de push.");
-                        setLoadingPush(false);
-                    })
-                    .withFailureHandler(e => {
-                        alert("Erro no servidor: " + e);
-                        setLoadingPush(false);
-                    })
-                    .testarPush({ id: params.id, token: params.token });
-            }
-        };
 
         // --- SISTEMA DE NOTIFICAÇÃO ---
         const requestPushPermission = async () => {
@@ -270,12 +244,11 @@
             const permission = await Notification.requestPermission();
             
             if (permission !== 'granted') {
-              alert('Permissão bloqueada (' + permission + ').');
+              alert('Permissão bloqueada pelo navegador. Toque no cadeado 🔒 para liberar.');
               setLoadingPush(false);
               return;
             }
 
-            // Garante que o SW está pronto antes de pedir token
             let registration;
             try {
                 registration = await navigator.serviceWorker.register('./sw.js');
@@ -297,7 +270,7 @@
                 if (params && params.id) {
                     google.script.run
                         .withSuccessHandler(() => {
-                            alert("✅ SUCESSO! Configurado para receber avisos.");
+                            alert("✅ SUCESSO! Você receberá notificações mesmo com o app fechado.");
                             setLoadingPush(false);
                         })
                         .withFailureHandler((e) => {
@@ -318,18 +291,9 @@
           }
         };
 
-        const startKeepAlive = () => {
-           if (phantomAudioRef.current) {
-              phantomAudioRef.current.volume = 0.05;
-              phantomAudioRef.current.play().catch(()=>{});
-              if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: 'Monitoramento PontoWeb', artist: 'Ativo', artwork: [{ src: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', type: 'image/png' }] });
-           }
-           if ('wakeLock' in navigator) navigator.wakeLock.request('screen').then(w => wakeLockRef.current = w).catch(()=>{});
-        };
-
         const triggerAppAlert = (title, body) => {
            const now = Date.now();
-           if (title !== "Teste PontoWeb" && lastNotifRef.current && lastNotifRef.current.body === body && (now - lastNotifRef.current.time < 300000)) return;
+           if (lastNotifRef.current && lastNotifRef.current.body === body && (now - lastNotifRef.current.time < 300000)) return;
            
            if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
            lastNotifRef.current = { body, time: now };
@@ -337,12 +301,9 @@
            setActiveAlert({ title, body });
            setTimeout(() => setActiveAlert(null), 15000);
            
+           // Tenta exibir notificação local se o app estiver aberto
            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-              if ('serviceWorker' in navigator) {
-                 navigator.serviceWorker.ready.then(registration => {
-                    registration.showNotification(title, { body, icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', tag: 'pontoweb', vibrate: [300, 100, 300] });
-                 }).catch(() => new Notification(title, { body, icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', tag: 'pontoweb' }));
-              } else new Notification(title, { body, icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', tag: 'pontoweb' });
+               new Notification(title, { body, icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', tag: 'pontoweb' });
            }
         };
 
@@ -444,23 +405,24 @@
 
         return (
           <div className="min-h-screen max-w-md mx-auto bg-white shadow-xl flex flex-col relative">
-             <audio ref={phantomAudioRef} loop preload="auto" src="https://github.com/anars/blank-audio/raw/master/10-minutes-of-silence.mp3"></audio>
              {activeAlert && <div className="fixed top-0 left-0 right-0 z-[100] p-4 slide-down"><div className="bg-white border-l-4 border-orange-500 shadow-2xl rounded-lg p-4 flex items-start gap-3"><div className="text-orange-500 animate-bounce"><Icon.Alert/></div><div className="flex-1"><h4 className="font-bold">{activeAlert.title}</h4><p className="text-sm">{activeAlert.body}</p></div><button onClick={()=>setActiveAlert(null)}>✕</button></div></div>}
-             <div className={`p-6 text-white text-center rounded-b-3xl shadow-lg z-10 relative ${gpsState==='denied'?'bg-red-600':'bg-green-700'}`}><button onClick={()=>setSettingsOpen(true)} className={`absolute top-4 right-4 text-green-100 hover:text-white bg-white/20 p-2 rounded-full ${notifConfig.enabled?'bell-shake':''}`}><Icon.Bell/></button><h1 className="text-2xl font-bold mt-2">PontoWeb</h1><div className="flex flex-col items-center mt-1 mb-1"><span className="text-4xl font-mono font-bold tracking-widest">{currentTime.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span></div><div className={`flex justify-center items-center gap-2 text-sm opacity-90 mt-2 py-1 px-3 rounded-full inline-flex ${gpsState==='denied'?'bg-red-800 animate-pulse font-bold':'bg-black/20'}`}>{notifConfig.enabled && <Icon.Zap/>} {gpsState==='searching'?'Procurando GPS...':gpsState==='denied'?'GPS Bloqueado!':'Localização Ativa'}</div></div>
+             <div className={`p-6 text-white text-center rounded-b-3xl shadow-lg z-10 relative ${gpsState==='denied'?'bg-red-600':'bg-green-700'}`}><button onClick={()=>setSettingsOpen(true)} className={`absolute top-4 right-4 text-green-100 hover:text-white bg-white/20 p-2 rounded-full ${notifConfig.enabled?'bell-shake':''}`}><Icon.Bell/></button><h1 className="text-2xl font-bold mt-2">PontoWeb</h1><div className="flex flex-col items-center mt-1 mb-1"><span className="text-4xl font-mono font-bold tracking-widest">{currentTime.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span></div><div className={`flex justify-center items-center gap-2 text-sm opacity-90 mt-2 py-1 px-3 rounded-full inline-flex ${gpsState==='denied'?'bg-red-800 animate-pulse font-bold':'bg-black/20'}`}>{notifConfig.enabled && <Icon.Zap/>} {gpsState==='searching'?'Procurando GPS...':gpsState==='denied'?'GPS Bloqueado!':'Localização Ativa'}</div>
+             {notifConfig.enabled && nextAlertInfo && <div className="mt-2 text-xs text-green-100 bg-black/20 px-2 py-1 rounded-lg">{nextAlertInfo}</div>}
+             </div>
              {status==='sending' && <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center fade-in"><div className="spinner border-green-500 mb-4"></div><p className="text-green-700 font-bold animate-pulse">Enviando...</p></div>}
              <div className="flex-1 p-6 flex flex-col justify-center gap-4"><div className="text-center mb-2"><p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Bolsista</p><div className="flex items-center justify-center gap-2 mb-2"><h3 className="text-xl font-bold text-gray-800">{bolsistaName}</h3><button onClick={()=>{if(confirm("Sair?")){localStorage.removeItem('ponto_auth_data'); setStatus('waiting_link');}}} className="bg-gray-100 p-1 rounded-full"><Icon.LogOut/></button></div><div className="flex gap-2 justify-center mt-2 flex-wrap text-sm">{entryTime && <span className="bg-blue-50 text-blue-700 px-3 py-1 font-bold rounded-full border border-blue-100">Entrada: {entryTime}</span>}{exitTime && <span className="bg-orange-50 text-orange-700 px-3 py-1 font-bold rounded-full border border-orange-100">Saída: {exitTime}</span>}</div></div>{gpsState === 'denied' && <div className="bg-red-50 text-red-700 p-3 rounded-lg text-center text-sm font-bold">🚫 Ative a localização no navegador.</div>}<button disabled={isBlocked('Entrada')} onClick={()=>startCamera('Entrada')} className="bg-green-50 text-green-700 border-2 border-green-200 p-5 rounded-2xl font-bold text-xl hover:bg-green-100 active:scale-95 disabled:opacity-50 transition-all">ENTRADA</button><button disabled={isBlocked('Saida')} onClick={()=>startCamera('Saida')} className="bg-red-50 text-red-700 border-2 border-red-200 p-5 rounded-2xl font-bold text-xl hover:bg-red-100 active:scale-95 disabled:opacity-50 transition-all">SAÍDA</button><div className="grid grid-cols-2 gap-4"><button disabled={gpsState!=='acquired'} onClick={()=>startCamera('Intervalo-Inicio')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border hover:bg-gray-100 active:scale-95 disabled:opacity-50">Início Int.</button><button disabled={gpsState!=='acquired'} onClick={()=>startCamera('Intervalo-Fim')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border hover:bg-gray-100 active:scale-95 disabled:opacity-50">Fim Int.</button></div></div>
              {settingsOpen && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 fade-in">
                    <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl">
                       <div className="flex justify-between items-center mb-6 border-b pb-2"><h3 className="font-bold text-lg flex items-center gap-2"><Icon.Bell/> Configurações</h3><button onClick={()=>setSettingsOpen(false)} className="text-gray-400 text-2xl">&times;</button></div>
-                      <div className="grid grid-cols-1 gap-3 mb-4">
-                         <button type="button" onClick={requestPushPermission} disabled={loadingPush} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 ${loadingPush ? 'bg-gray-400 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600'} text-white`}>
-                           {loadingPush ? 'Ativando...' : <><Icon.Bell/> Ativar Push Notification</>}
-                         </button>
-                         <button onClick={testRemotePush} className="w-full bg-indigo-100 text-indigo-700 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-indigo-200 active:scale-95">
-                           <Icon.Cloud/> Testar Push (Nuvem)
+                      
+                      <div className="mb-6 p-4 bg-yellow-50 border border-yellow-100 rounded-xl text-center">
+                          <p className="text-yellow-800 text-sm mb-3">Ative para receber alertas no celular.</p>
+                          <button type="button" onClick={requestPushPermission} disabled={loadingPush} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 ${loadingPush ? 'bg-gray-400 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600'} text-white`}>
+                           {loadingPush ? 'Ativando...' : <><Icon.Bell/> Ativar/Renovar Notificações</>}
                          </button>
                       </div>
+
                       <form onSubmit={(e)=>{
                           e.preventDefault(); 
                           const fd=new FormData(e.target); 
@@ -471,19 +433,17 @@
                           if (params && params.id) {
                               const btn = e.target.querySelector('button[type="submit"]');
                               const originalText = btn.innerText;
-                              btn.innerText = "Salvando na Nuvem...";
+                              btn.innerText = "Salvando...";
                               btn.disabled = true;
 
                               google.script.run
                                   .withSuccessHandler(() => {
-                                      alert("Configuração salva na nuvem! O alarme funcionará com app fechado.");
                                       btn.innerText = originalText;
                                       btn.disabled = false;
                                       setSettingsOpen(false);
-                                      if(c.enabled) startKeepAlive();
                                   })
                                   .withFailureHandler((err) => {
-                                      alert("Erro ao salvar na nuvem (funciona só local): " + err);
+                                      alert("Erro ao salvar: " + err);
                                       btn.innerText = originalText;
                                       btn.disabled = false;
                                       setSettingsOpen(false);
@@ -497,11 +457,10 @@
                                   });
                           } else {
                               setSettingsOpen(false); 
-                              if(c.enabled) startKeepAlive();
                           }
                       }}>
                          <div className="space-y-4 mb-6"><div><label className="block text-xs font-bold text-gray-500 uppercase">Entrada</label><input type="time" name="eT" defaultValue={notifConfig.entryTimeStr} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase">Saída (Opcional)</label><input type="time" name="xT" defaultValue={notifConfig.exitTimeStr} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase">Avisar antes (min)</label><input type="number" name="rm" defaultValue={notifConfig.reminderMins} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div></div>
-                         <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow">Salvar</button>
+                         <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow">Salvar Alterações</button>
                       </form>
                    </div>
                 </div>
