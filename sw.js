@@ -1,7 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'pontoweb-v6-offline-master';
+const CACHE_NAME = 'pontoweb-v7-offline-fluid'; // Atualizado para forçar atualização
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
