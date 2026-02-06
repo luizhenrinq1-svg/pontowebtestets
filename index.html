@@ -45,10 +45,10 @@
       const { useState, useEffect, useRef } = React;
 
       // ======================================================================
-      // ⚠️ 1. COLOQUE A URL DO APPS SCRIPT AQUI
+      // ⚠️ 1. IMPORTANTE: VERIFIQUE SE ESTA URL ESTÁ CORRETA (DO SEU WEB APP)
       const API_URL = "https://script.google.com/macros/s/AKfycbyhvzFHFiUj0sSNOzD8wQft9y_yU8OuqN3SSUCfuiwYyzD8xx5JeEMSd9jjOMq-OpXTig/exec"; 
       
-      // ⚠️ 2. DADOS DO FIREBASE (Configurados)
+      // ⚠️ 2. DADOS DO FIREBASE
       const firebaseConfig = {
         apiKey: "AIzaSyCn89LRlH1lksZ811--jb2jlB2iZS5NH1s",
         authDomain: "pontoweb-dc8dd.firebaseapp.com",
@@ -57,21 +57,24 @@
         messagingSenderId: "465750633035",
         appId: "1:465750633035:web:282efd14b807e2a3823bce"
       };
+      
+      // Chave VAPID fornecida por você
+      const VAPID_KEY = 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0';
       // ======================================================================
 
-      // Inicializa Firebase se configurado
+      // Inicializa Firebase
       let messaging = null;
       try {
         if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "SUA_API_KEY") {
           firebase.initializeApp(firebaseConfig);
           messaging = firebase.messaging();
         }
-      } catch (e) { console.log("Firebase não configurado ou erro na inicialização:", e); }
+      } catch (e) { console.log("Firebase erro init:", e); }
 
       const ExternalBridge = {
         request: async (action, payload = {}) => {
           if (!API_URL.startsWith('http')) {
-            alert("ERRO DE CONFIGURAÇÃO: Edite o index.html e coloque a URL do Apps Script.");
+            alert("ERRO DE CONFIGURAÇÃO: URL da API inválida no index.html.");
             throw new Error("URL não configurada");
           }
           const response = await fetch(API_URL, {
@@ -93,7 +96,6 @@
             registrarPonto: (payload) => ExternalBridge.request('registrarPonto', payload).then(success).catch(failure || console.error),
             salvarFCMToken: (payload) => ExternalBridge.request('salvarToken', payload).then(success).catch(failure || console.error),
             salvarConfiguracao: (payload) => ExternalBridge.request('salvarConfiguracao', payload).then(success).catch(failure || console.error),
-            // NOVO: Função para testar push direto do servidor
             testarPush: (payload) => ExternalBridge.request('testarPush', payload).then(success).catch(failure || console.error)
           };
         };
@@ -182,7 +184,7 @@
         const [monitorActive, setMonitorActive] = useState(false);
         const [inputUrl, setInputUrl] = useState('');
         const [loadingPush, setLoadingPush] = useState(false);
-        const [nextAlertInfo, setNextAlertInfo] = useState(''); // Visual feedback state
+        const [nextAlertInfo, setNextAlertInfo] = useState(''); 
         
         const videoRef = useRef(null);
         const lastNotifRef = useRef(null);
@@ -191,7 +193,7 @@
         const [isIOS, setIsIOS] = useState(false);
         const [isAndroid, setIsAndroid] = useState(false);
 
-        // 1. Setup Inicial e Relógio (Separado para não travar)
+        // 1. Setup Inicial e Relógio
         useEffect(() => {
           const ua = navigator.userAgent.toLowerCase();
           setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent));
@@ -205,7 +207,6 @@
              setNotifConfig(prev => ({...prev, ...JSON.parse(saved)}));
           }
 
-          // Relógio Independente
           const timer = setInterval(() => { 
              setCurrentTime(new Date()); 
              setMonitorActive(prev => !prev); 
@@ -216,7 +217,7 @@
 
         // 2. Loop de Verificação de Notificações
         useEffect(() => {
-           const notifTimer = setInterval(checkNotifications, 5000); // Check more frequently (5s)
+           const notifTimer = setInterval(checkNotifications, 5000); 
            return () => clearInterval(notifTimer);
         }, [notifConfig, entryTime, lastAction]);
 
@@ -231,21 +232,12 @@
            }
         }, [status]);
 
-        const testNotification = () => {
-           if (Notification.permission !== 'granted') {
-              alert("⚠️ Permissão não concedida. Clique em 'Ativar Push Notification' primeiro.");
-              return;
-           }
-           triggerAppAlert("Teste PontoWeb", "Notificação de teste LOCAL! 🔔 " + new Date().toLocaleTimeString());
-        };
-
         const testRemotePush = () => {
             if (!params?.id) { alert("Erro: Login necessário."); return; }
-            if (confirm("Isso vai pedir ao servidor para enviar um Push agora. FECHE O APP IMEDIATAMENTE após clicar em OK para testar se chega com ele fechado.")) {
+            if (confirm("Isso vai pedir ao servidor para enviar um Push agora. FECHE O APP IMEDIATAMENTE após clicar em OK para testar.")) {
                 setLoadingPush(true);
                 google.script.run
                     .withSuccessHandler((res) => {
-                        // Não mostramos alert aqui para não reabrir o app se o usuário fechou
                         console.log("Sucesso no envio do comando de push.");
                         setLoadingPush(false);
                     })
@@ -257,7 +249,7 @@
             }
         };
 
-        // --- SISTEMA DE NOTIFICAÇÃO (DIAGNÓSTICO COMPLETO) ---
+        // --- SISTEMA DE NOTIFICAÇÃO ---
         const requestPushPermission = async () => {
           if (loadingPush) return;
           setLoadingPush(true);
@@ -283,13 +275,12 @@
               return;
             }
 
-            alert("Permissão OK. Registrando...");
-            
+            // Garante que o SW está pronto antes de pedir token
             let registration;
             try {
                 registration = await navigator.serviceWorker.register('./sw.js');
                 const readyPromise = navigator.serviceWorker.ready;
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Tempo limite")), 10000));
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Tempo limite SW")), 10000));
                 registration = await Promise.race([readyPromise, timeoutPromise]);
             } catch (e) {
                 alert("ERRO NO SW: " + e.message);
@@ -297,10 +288,8 @@
                 return;
             }
 
-            alert("Conectado. Gerando token...");
-            
             const currentToken = await messaging.getToken({ 
-                vapidKey: 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0',
+                vapidKey: VAPID_KEY,
                 serviceWorkerRegistration: registration 
             });
 
@@ -341,10 +330,13 @@
         const triggerAppAlert = (title, body) => {
            const now = Date.now();
            if (title !== "Teste PontoWeb" && lastNotifRef.current && lastNotifRef.current.body === body && (now - lastNotifRef.current.time < 300000)) return;
+           
            if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
            lastNotifRef.current = { body, time: now };
+           
            setActiveAlert({ title, body });
            setTimeout(() => setActiveAlert(null), 15000);
+           
            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
               if ('serviceWorker' in navigator) {
                  navigator.serviceWorker.ready.then(registration => {
@@ -465,9 +457,6 @@
                          <button type="button" onClick={requestPushPermission} disabled={loadingPush} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 ${loadingPush ? 'bg-gray-400 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600'} text-white`}>
                            {loadingPush ? 'Ativando...' : <><Icon.Bell/> Ativar Push Notification</>}
                          </button>
-                         <button onClick={testNotification} className="w-full bg-blue-100 text-blue-700 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-blue-200 active:scale-95">
-                           <Icon.Bell/> Testar Notificação (Local)
-                         </button>
                          <button onClick={testRemotePush} className="w-full bg-indigo-100 text-indigo-700 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-indigo-200 active:scale-95">
                            <Icon.Cloud/> Testar Push (Nuvem)
                          </button>
@@ -512,7 +501,6 @@
                           }
                       }}>
                          <div className="space-y-4 mb-6"><div><label className="block text-xs font-bold text-gray-500 uppercase">Entrada</label><input type="time" name="eT" defaultValue={notifConfig.entryTimeStr} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase">Saída (Opcional)</label><input type="time" name="xT" defaultValue={notifConfig.exitTimeStr} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase">Avisar antes (min)</label><input type="number" name="rm" defaultValue={notifConfig.reminderMins} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div></div>
-                         <button type="button" onClick={()=>{Notification.requestPermission().then(p=>{if(p==='granted') setNotifConfig(c=>({...c, enabled:true})); else alert("Permissão negada");});}} className={`w-full py-2 mb-2 rounded-lg font-bold text-sm ${notifConfig.enabled?'bg-green-100 text-green-700':'bg-gray-200 text-gray-700'}`}>{notifConfig.enabled ? '🔔 Monitoramento Ativo' : '🔕 Ativar Monitoramento'}</button>
                          <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow">Salvar</button>
                       </form>
                    </div>
@@ -539,32 +527,3 @@
     </script>
   </body>
 </html>
-```
-
-### Código Backend Necessário (`Código.gs`)
-
-Você precisa atualizar seu backend para receber esse pedido de teste. Adicione/atualize estas partes no seu Google Apps Script:
-
-1.  No **`doPost`**, adicione a rota para `testarPush`:
-    ```javascript
-    } else if (data.action === 'testarPush') { // <--- ADICIONE ISTO
-      result = testarPush_(data);
-    }
-    ```
-
-2.  No final do arquivo, adicione a função `testarPush_`:
-    ```javascript
-    function testarPush_(data) {
-      const { id, token } = data;
-      // ... (Lógica de busca do usuário igual salvarToken_)
-      
-      // Quando encontrar o usuário e validar:
-      // ...
-      const userToken = values[i][headers.indexOf('FCMToken')];
-      if (userToken) {
-         enviarPushFCM(userToken, "Teste de Servidor 🚀", "Se você leu isso com o app fechado, o sistema está 100%!");
-         return { success: true, msg: "Push enviado! Verifique o celular." };
-      } else {
-         throw new Error("Token Push não encontrado. Ative as notificações novamente.");
-      }
-    }
