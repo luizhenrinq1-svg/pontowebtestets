@@ -186,20 +186,45 @@
         const [isIOS, setIsIOS] = useState(false);
         const [isAndroid, setIsAndroid] = useState(false);
 
+        // 1. Setup Inicial e Relógio (Separado para não travar)
         useEffect(() => {
           const ua = navigator.userAgent.toLowerCase();
           setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent));
           setIsAndroid(/android/.test(ua));
+          
           if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(console.error);
+          
+          // Carregar configurações (uma vez)
           const saved = localStorage.getItem('pontoWebConfig');
-          if (saved) setNotifConfig(prev => ({...prev, ...JSON.parse(saved)}));
-          const timer = setInterval(() => { setCurrentTime(new Date()); setMonitorActive(prev => !prev); }, 1000);
-          const notifTimer = setInterval(checkNotifications, 15000);
-          const timeout = setTimeout(() => {
-             if (status === 'loading') { localStorage.removeItem('ponto_auth_data'); setStatus('waiting_link'); }
-          }, 8000);
-          return () => { clearInterval(timer); clearInterval(notifTimer); clearTimeout(timeout); };
+          if (saved) {
+             setNotifConfig(prev => ({...prev, ...JSON.parse(saved)}));
+          }
+
+          // Relógio Independente
+          const timer = setInterval(() => { 
+             setCurrentTime(new Date()); 
+             setMonitorActive(prev => !prev); 
+          }, 1000);
+
+          return () => clearInterval(timer);
+        }, []); 
+
+        // 2. Loop de Verificação de Notificações
+        useEffect(() => {
+           const notifTimer = setInterval(checkNotifications, 15000);
+           return () => clearInterval(notifTimer);
         }, [notifConfig, entryTime, lastAction]);
+
+        // 3. Timeout de Segurança
+        useEffect(() => {
+           if (status === 'loading') {
+              const timeout = setTimeout(() => {
+                 localStorage.removeItem('ponto_auth_data'); 
+                 setStatus('waiting_link'); 
+              }, 10000);
+              return () => clearTimeout(timeout);
+           }
+        }, [status]);
 
         const addToCalendar = () => {
            const now = new Date();
