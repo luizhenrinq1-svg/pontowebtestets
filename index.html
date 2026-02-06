@@ -236,6 +236,10 @@
            window.location.href = `intent:#Intent;action=android.intent.action.SET_ALARM;i.android.intent.extra.alarm.HOUR=${h};i.android.intent.extra.alarm.MINUTES=${m};S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(title)};B.android.intent.extra.alarm.SKIP_UI=false;end`;
         };
 
+        const testNotification = () => {
+           triggerAppAlert("Teste PontoWeb", "Isto é um teste de notificação! 🔔");
+        };
+
         // --- SISTEMA DE NOTIFICAÇÃO (DIAGNÓSTICO COMPLETO) ---
         const requestPushPermission = async () => {
           if (loadingPush) return;
@@ -443,6 +447,9 @@
                          {isAndroid && (<button onClick={setNativeAlarm} className="w-full bg-orange-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-orange-700 active:scale-95"><Icon.Clock/> Definir Alarme no Android</button>)}
                          <button type="button" onClick={requestPushPermission} disabled={loadingPush} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 ${loadingPush ? 'bg-gray-400 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600'} text-white`}>
                            {loadingPush ? 'Ativando...' : <><Icon.Bell/> Ativar Push Notification</>}
+                         </button>
+                         <button onClick={testNotification} className="w-full bg-blue-100 text-blue-700 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-blue-200 active:scale-95">
+                           <Icon.Bell/> Testar Notificação (Local)
                          </button>
                       </div>
                       <form onSubmit={(e)=>{e.preventDefault(); const fd=new FormData(e.target); const c={enabled:notifConfig.enabled, entryTimeStr:fd.get('eT'), exitTimeStr:fd.get('xT'), reminderMins:Number(fd.get('rm'))}; setNotifConfig(c); localStorage.setItem('pontoWebConfig', JSON.stringify(c)); setSettingsOpen(false); if(c.enabled) startKeepAlive();}}>
