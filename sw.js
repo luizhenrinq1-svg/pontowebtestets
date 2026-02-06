@@ -1,102 +1,483 @@
-// Importa as bibliotecas do Firebase para o Service Worker
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PontoWeb Unespar</title>
+    
+    <!-- Configurações PWA -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#166534">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2983/2983818.png">
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/2983/2983818.png">
 
-const CACHE_NAME = 'pontoweb-unified-v2-firebase';
-const ASSETS_TO_CACHE = [
-  './',
-  './index.html',
-  './manifest.json',
-  'https://unpkg.com/react@18/umd/react.production.min.js',
-  'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
-  'https://unpkg.com/@babel/standalone/babel.min.js',
-  'https://cdn.tailwindcss.com',
-  'https://cdn-icons-png.flaticon.com/512/2983/2983818.png'
-];
+    <!-- Bibliotecas React e Tailwind -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 
-// Configuração do Firebase no Service Worker (Deve ser igual ao index.html)
-const firebaseConfig = {
-  apiKey: "AIzaSyCn89LRlH1lksZ811--jb2jlB2iZS5NH1s",
-  authDomain: "pontoweb-dc8dd.firebaseapp.com",
-  projectId: "pontoweb-dc8dd",
-  storageBucket: "pontoweb-dc8dd.firebasestorage.app",
-  messagingSenderId: "465750633035",
-  appId: "1:465750633035:web:282efd14b807e2a3823bce"
-};
+    <!-- FIREBASE (Essencial para Push Notifications) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js"></script>
 
-// Inicializa Firebase no SW se configurado
-try {
-  // Verifica se a biblioteca carregou antes de usar
-  if (typeof firebase !== 'undefined' && firebaseConfig.apiKey !== "SUA_API_KEY") {
-    firebase.initializeApp(firebaseConfig);
-    const messaging = firebase.messaging();
+    <style>
+      body { background-color: #f0fdf4; color: #166534; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+      .spinner { border: 4px solid #dcfce7; width: 40px; height: 40px; border-radius: 50%; border-left-color: #16a34a; animation: spin 1s linear infinite; }
+      @keyframes spin { 100% { transform: rotate(360deg); } }
+      .slide-down { animation: slideDown 0.5s ease-out forwards; }
+      @keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+      .bell-shake { animation: shake 2s infinite; transform-origin: top center; }
+      @keyframes shake { 0% { transform: rotate(0deg); } 10% { transform: rotate(10deg); } 20% { transform: rotate(-10deg); } 30% { transform: rotate(6deg); } 40% { transform: rotate(-6deg); } 50% { transform: rotate(0deg); } 100% { transform: rotate(0deg); } }
+      .pulse-dot { animation: pulse-green 2s infinite; }
+      @keyframes pulse-green { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(74, 222, 128, 0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); } }
+      .fade-in { animation: fadeIn 0.5s ease-out; }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      .bounce-arrow { animation: bounce 2s infinite; }
+      @keyframes bounce { 0%, 20%, 50%, 80%, 100% {transform: translateY(0);} 40% {transform: translateY(-10px);} 60% {transform: translateY(-5px);} }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
 
-    // Manipula mensagens quando o app está FECHADO ou em SEGUNDO PLANO
-    messaging.onBackgroundMessage((payload) => {
-      console.log('Mensagem em background recebida: ', payload);
+      // ======================================================================
+      // ⚠️ 1. COLOQUE A URL DO APPS SCRIPT AQUI
+      const API_URL = "https://script.google.com/macros/s/AKfycbyhvzFHFiUj0sSNOzD8wQft9y_yU8OuqN3SSUCfuiwYyzD8xx5JeEMSd9jjOMq-OpXTig/exec"; 
       
-      // Personaliza a notificação com base no payload recebido
-      const notificationTitle = payload.notification?.title || 'PontoWeb';
-      const notificationOptions = {
-        body: payload.notification?.body || 'Nova mensagem',
-        icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', // Ícone fixo para garantir visualização
-        vibrate: [200, 100, 200]
+      // ⚠️ 2. DADOS DO FIREBASE (Configurados)
+      const firebaseConfig = {
+        apiKey: "AIzaSyCn89LRlH1lksZ811--jb2jlB2iZS5NH1s",
+        authDomain: "pontoweb-dc8dd.firebaseapp.com",
+        projectId: "pontoweb-dc8dd",
+        storageBucket: "pontoweb-dc8dd.firebasestorage.app",
+        messagingSenderId: "465750633035",
+        appId: "1:465750633035:web:282efd14b807e2a3823bce"
+      };
+      // ======================================================================
+
+      // Inicializa Firebase se configurado
+      let messaging = null;
+      try {
+        if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "SUA_API_KEY") {
+          firebase.initializeApp(firebaseConfig);
+          messaging = firebase.messaging();
+        }
+      } catch (e) { console.log("Firebase não configurado ou erro na inicialização:", e); }
+
+      const ExternalBridge = {
+        request: async (action, payload = {}) => {
+          if (!API_URL.startsWith('http')) {
+            alert("ERRO DE CONFIGURAÇÃO: Edite o index.html e coloque a URL do Apps Script.");
+            throw new Error("URL não configurada");
+          }
+          const response = await fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action, ...payload })
+          });
+          const json = await response.json();
+          if (json.error) throw new Error(json.error);
+          return json;
+        }
       };
 
-      self.registration.showNotification(notificationTitle, notificationOptions);
-    });
-  }
-} catch(e) { console.log('Erro ao inicializar Firebase no SW (pode ser offline):', e); }
-
-// --- CACHE E OFFLINE (Versão Robusta) ---
-
-self.addEventListener('install', (event) => {
-  self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        // Tenta cachear, mas não falha a instalação se um arquivo der erro (ex: 404)
-        return cache.addAll(ASSETS_TO_CACHE).catch(err => {
-           console.warn('Aviso: Alguns arquivos não foram cacheados, mas o SW continuará.', err);
-        });
-      })
-  );
-});
-
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    Promise.all([
-      self.clients.claim(),
-      caches.keys().then((keyList) => {
-        return Promise.all(keyList.map((key) => {
-          if (key !== CACHE_NAME) return caches.delete(key);
-        }));
-      })
-    ])
-  );
-});
-
-self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      return cachedResponse || fetch(event.request).catch(() => {
-         // Fallback opcional para quando estiver offline e sem cache
-         // return caches.match('./offline.html');
-      });
-    })
-  );
-});
-
-self.addEventListener('notificationclick', function(event) {
-  event.notification.close();
-  event.waitUntil(
-    clients.matchAll({type: 'window', includeUncontrolled: true}).then(function(clientList) {
-      for (var i = 0; i < clientList.length; i++) {
-        var client = clientList[i];
-        if (client.url && 'focus' in client) return client.focus();
+      if (typeof google === 'undefined') {
+        const createRunner = (success, failure) => {
+          return {
+            withSuccessHandler: (fn) => createRunner(fn, failure),
+            withFailureHandler: (fn) => createRunner(success, fn),
+            getBolsistaInfo: (id, token) => ExternalBridge.request('getBolsistaInfo', { id, token }).then(success).catch(failure || console.error),
+            registrarPonto: (payload) => ExternalBridge.request('registrarPonto', payload).then(success).catch(failure || console.error),
+            salvarFCMToken: (payload) => ExternalBridge.request('salvarToken', payload).then(success).catch(failure || console.error)
+          };
+        };
+        window.google = { script: { run: createRunner() } };
       }
-      if (clients.openWindow) return clients.openWindow('./');
-    })
-  );
-});
+
+      // Ícones SVG
+      const Icon = {
+        Map: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
+        Camera: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
+        Check: () => <svg className="w-16 h-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
+        Lock: () => <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>,
+        Bell: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>,
+        Alert: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>,
+        Zap: () => <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>,
+        Link: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>,
+        Download: () => <svg className="w-6 h-6 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>,
+        LogOut: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>,
+        Calendar: () => <svg className="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>,
+        Clock: () => <svg className="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      };
+
+      // --- COMPONENTE: GUIA DE INSTALAÇÃO ---
+      function InstallGuide({ promptEvent }) {
+        const [deviceType, setDeviceType] = useState('desktop');
+        useEffect(() => {
+          const ua = navigator.userAgent.toLowerCase();
+          if (/iphone|ipad|ipod/.test(ua)) setDeviceType('ios');
+          else if (/android/.test(ua)) setDeviceType('android');
+          else setDeviceType('desktop');
+        }, []);
+
+        const installAndroid = () => {
+          if (promptEvent) promptEvent.prompt();
+          else alert("Toque no menu do navegador (três pontinhos) e selecione 'Adicionar à tela inicial'.");
+        };
+
+        return (
+          <div className="fixed inset-0 bg-gray-50 z-50 flex flex-col items-center justify-center p-6 text-center fade-in">
+            <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-sm border border-gray-100">
+              <img src="https://cdn-icons-png.flaticon.com/512/2983/2983818.png" className="w-20 h-20 mx-auto mb-6 rounded-2xl shadow-md" />
+              <h1 className="text-2xl font-bold text-gray-800 mb-2">Instale o App</h1>
+              <p className="text-gray-500 mb-6 leading-relaxed text-sm">Para garantir o funcionamento offline e notificações, é necessário instalar este aplicativo.</p>
+              {deviceType === 'ios' && (
+                <div className="space-y-4 text-left bg-gray-50 p-4 rounded-2xl text-sm">
+                  <div className="flex items-start gap-3"><span className="bg-blue-100 text-blue-600 font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0">1</span><p>Toque no botão <strong>Compartilhar</strong> <span className="text-blue-500 text-lg">⎋</span> abaixo.</p></div>
+                  <div className="flex items-start gap-3"><span className="bg-blue-100 text-blue-600 font-bold w-6 h-6 flex items-center justify-center rounded-full shrink-0">2</span><p>Selecione <strong>Adicionar à Tela de Início</strong>.</p></div>
+                  <div className="mt-4 text-center text-blue-500 text-xs font-bold bounce-arrow">👇 Use a barra do navegador</div>
+                </div>
+              )}
+              {deviceType === 'android' && (
+                <button onClick={installAndroid} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center gap-2">
+                  <Icon.Download /> Instalar Agora
+                </button>
+              )}
+              {deviceType === 'desktop' && (
+                <div className="text-sm text-gray-600 bg-gray-50 p-4 rounded-xl border">
+                  <p>Olhe para a barra de endereços do Chrome.</p>
+                  <p className="mt-2">Clique no ícone de <strong>Instalar</strong> (Computador com seta) no canto direito.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      // --- APP PRINCIPAL ---
+      function TimeClock() {
+        const [params, setParams] = useState(null);
+        const [bolsistaName, setBolsistaName] = useState('');
+        const [lastAction, setLastAction] = useState(null);
+        const [entryTime, setEntryTime] = useState(null);
+        const [exitTime, setExitTime] = useState(null);
+        const [targetHours, setTargetHours] = useState(4);
+        const [location, setLocation] = useState(null);
+        const [status, setStatus] = useState('loading');
+        const [gpsState, setGpsState] = useState('searching');
+        const [punchType, setPunchType] = useState(null);
+        const [result, setResult] = useState(null);
+        const [currentTime, setCurrentTime] = useState(new Date());
+        
+        const [settingsOpen, setSettingsOpen] = useState(false);
+        const [notifConfig, setNotifConfig] = useState({ enabled: false, entryTimeStr: '08:00', exitTimeStr: '', reminderMins: 10 });
+        const [activeAlert, setActiveAlert] = useState(null);
+        const [monitorActive, setMonitorActive] = useState(false);
+        const [inputUrl, setInputUrl] = useState('');
+        const [loadingPush, setLoadingPush] = useState(false);
+        
+        const videoRef = useRef(null);
+        const lastNotifRef = useRef(null);
+        const wakeLockRef = useRef(null);
+        const phantomAudioRef = useRef(null);
+        const [isIOS, setIsIOS] = useState(false);
+        const [isAndroid, setIsAndroid] = useState(false);
+
+        useEffect(() => {
+          const ua = navigator.userAgent.toLowerCase();
+          setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent));
+          setIsAndroid(/android/.test(ua));
+          if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(console.error);
+          const saved = localStorage.getItem('pontoWebConfig');
+          if (saved) setNotifConfig(prev => ({...prev, ...JSON.parse(saved)}));
+          const timer = setInterval(() => { setCurrentTime(new Date()); setMonitorActive(prev => !prev); }, 1000);
+          const notifTimer = setInterval(checkNotifications, 15000);
+          const timeout = setTimeout(() => {
+             if (status === 'loading') { localStorage.removeItem('ponto_auth_data'); setStatus('waiting_link'); }
+          }, 8000);
+          return () => { clearInterval(timer); clearInterval(notifTimer); clearTimeout(timeout); };
+        }, [notifConfig, entryTime, lastAction]);
+
+        const addToCalendar = () => {
+           const now = new Date();
+           const fmtNum = (n) => String(n).padStart(2, '0');
+           let title = "", details = "", dateObj = null;
+           if (entryTime && targetHours) { 
+              const [h, m] = entryTime.split(':').map(Number);
+              dateObj = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h + targetHours, m);
+              title = "🔴 SAÍDA PONTO (Alarme)";
+              details = "Hora de registrar a saída!";
+           } else if (notifConfig.entryTimeStr) { 
+              const [h, m] = notifConfig.entryTimeStr.split(':').map(Number);
+              dateObj = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+              title = "🟢 ENTRADA PONTO (Alarme)";
+              details = "Hora de registrar a entrada!";
+           } else { alert("Registre o ponto ou configure o horário primeiro."); return; }
+           const dateStr = dateObj.getFullYear() + fmtNum(dateObj.getMonth() + 1) + fmtNum(dateObj.getDate());
+           const timeStr = fmtNum(dateObj.getHours()) + fmtNum(dateObj.getMinutes()) + '00';
+           const endDateTime = dateStr + 'T' + fmtNum(dateObj.getHours()) + fmtNum(dateObj.getMinutes() + 10) + '00';
+           const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dateStr}T${timeStr}/${endDateTime}&details=${encodeURIComponent(details)}&sf=true&output=xml`;
+           window.open(url, '_blank');
+        };
+
+        const setNativeAlarm = () => {
+           if (!isAndroid) { alert("Esta função é exclusiva para Android."); return; }
+           let h, m, title;
+           if (entryTime && targetHours) {
+              const [eh, em] = entryTime.split(':').map(Number);
+              const date = new Date(); date.setHours(eh + targetHours, em);
+              h = date.getHours(); m = date.getMinutes(); title = "Saída PontoWeb";
+           } else if (notifConfig.entryTimeStr) {
+              [h, m] = notifConfig.entryTimeStr.split(':').map(Number); title = "Entrada PontoWeb";
+           } else { alert("Configure o horário primeiro."); return; }
+           window.location.href = `intent:#Intent;action=android.intent.action.SET_ALARM;i.android.intent.extra.alarm.HOUR=${h};i.android.intent.extra.alarm.MINUTES=${m};S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(title)};B.android.intent.extra.alarm.SKIP_UI=false;end`;
+        };
+
+        const testNotification = () => {
+           triggerAppAlert("Teste PontoWeb", "Isto é um teste de notificação! 🔔");
+        };
+
+        // --- SISTEMA DE NOTIFICAÇÃO (DIAGNÓSTICO COMPLETO) ---
+        const requestPushPermission = async () => {
+          if (loadingPush) return;
+          setLoadingPush(true);
+
+          // Passo 1: Verificar se o Firebase carregou
+          if (!messaging) {
+            alert("ERRO: O Firebase não foi inicializado. Verifique se você está conectado à internet e se recarregou a página.");
+            setLoadingPush(false);
+            return;
+          }
+
+          // Passo 2: Verificar suporte do navegador
+          if (!('serviceWorker' in navigator)) {
+             alert("ERRO: Seu navegador não suporta Service Workers (necessário para Push).");
+             setLoadingPush(false);
+             return;
+          }
+
+          try {
+            // Passo 3: Pedir permissão ao usuário
+            const permission = await Notification.requestPermission();
+            
+            if (permission !== 'granted') {
+              alert('Permissão bloqueada (' + permission + '). Toque no cadeado 🔒 na barra de endereço e libere as Notificações.');
+              setLoadingPush(false);
+              return;
+            }
+
+            // Passo 4: Garantir que o Service Worker está pronto
+            alert("Permissão OK. Registrando Service Worker...");
+            
+            let registration;
+            try {
+                // Força o registro para garantir que o arquivo sw.js existe e é acessível
+                registration = await navigator.serviceWorker.register('./sw.js');
+                
+                // Aguarda ele estar pronto (timeout de 10s para não travar para sempre)
+                alert("SW registrado. Aguardando ativação (pode demorar)...");
+                const readyPromise = navigator.serviceWorker.ready;
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Tempo limite excedido")), 10000));
+                
+                registration = await Promise.race([readyPromise, timeoutPromise]);
+            } catch (e) {
+                alert("ERRO NO SW: " + e.message + ". Verifique se o arquivo sw.js está na pasta correta no GitHub.");
+                setLoadingPush(false);
+                return;
+            }
+
+            // Passo 5: Pedir o Token ao Firebase
+            alert("Conectado ao SW. Gerando token Firebase...");
+            
+            const currentToken = await messaging.getToken({ 
+                vapidKey: 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0',
+                serviceWorkerRegistration: registration 
+            });
+
+            if (currentToken) {
+                console.log('Token:', currentToken);
+                // Passo 6: Enviar para o Apps Script
+                if (params && params.id) {
+                    google.script.run
+                        .withSuccessHandler(() => {
+                            alert("✅ SUCESSO! Seu celular está configurado para receber avisos.");
+                            setLoadingPush(false);
+                        })
+                        .withFailureHandler((e) => {
+                            alert("Erro ao salvar no servidor: " + e);
+                            setLoadingPush(false);
+                        })
+                        .salvarFCMToken({ id: params.id, token: params.token, fcmToken: currentToken });
+                } else {
+                    alert("Token gerado: " + currentToken.slice(0,15) + "... (Mas usuário não está logado)");
+                    setLoadingPush(false);
+                }
+            } else {
+                alert("Aviso: Nenhum token foi gerado. Tente limpar os dados do site e tentar novamente.");
+                setLoadingPush(false);
+            }
+
+          } catch (err) {
+            console.error(err);
+            alert("ERRO TÉCNICO: " + err.message + ". Tente fechar e abrir o app novamente.");
+            setLoadingPush(false);
+          }
+        };
+
+        const startKeepAlive = () => {
+           if (phantomAudioRef.current) {
+              phantomAudioRef.current.volume = 0.05;
+              phantomAudioRef.current.play().catch(()=>{});
+              if ('mediaSession' in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: 'Monitoramento PontoWeb', artist: 'Ativo', artwork: [{ src: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', type: 'image/png' }] });
+           }
+           if ('wakeLock' in navigator) navigator.wakeLock.request('screen').then(w => wakeLockRef.current = w).catch(()=>{});
+        };
+
+        const triggerAppAlert = (title, body) => {
+           const now = Date.now();
+           if (lastNotifRef.current && lastNotifRef.current.body === body && (now - lastNotifRef.current.time < 300000)) return;
+           if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+           lastNotifRef.current = { body, time: now };
+           setActiveAlert({ title, body });
+           setTimeout(() => setActiveAlert(null), 15000);
+           if (typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification(title, { body, icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', tag: 'pontoweb' });
+        };
+
+        const checkNotifications = () => {
+           if (!notifConfig.enabled) return;
+           const now = new Date();
+           const totalMin = now.getHours() * 60 + now.getMinutes();
+           if (notifConfig.entryTimeStr && !lastAction) {
+              const [h, m] = notifConfig.entryTimeStr.split(':').map(Number);
+              const target = h * 60 + m;
+              if (totalMin === target - notifConfig.reminderMins) triggerAppAlert("⏰ LEMBRETE", `Faltam ${notifConfig.reminderMins} min para entrar.`);
+              if (totalMin === target + 5) triggerAppAlert("⚠️ ATRASO", "Passaram 5 minutos do horário!");
+           }
+           let exitTarget = null;
+           if (notifConfig.exitTimeStr) {
+               const [h, m] = notifConfig.exitTimeStr.split(':').map(Number); exitTarget = h * 60 + m;
+           } else if (entryTime && targetHours) {
+               const [h, m] = entryTime.split(':').map(Number); exitTarget = (h * 60 + m) + (targetHours * 60);
+           }
+           if (exitTarget && lastAction !== 'Saida') {
+              if (totalMin === exitTarget - notifConfig.reminderMins) triggerAppAlert("🚪 SAÍDA PRÓXIMA", `Prepare-se para sair em ${notifConfig.reminderMins} min.`);
+              if (totalMin === exitTarget) triggerAppAlert("✅ FIM DO EXPEDIENTE", "Horário cumprido! Pode registrar saída.");
+           }
+        };
+
+        useEffect(() => {
+           const u = new URLSearchParams(window.location.search);
+           const id = u.get('id'), token = u.get('token');
+           if (id && token) saveAndLogin(id, token);
+           else {
+              const s = localStorage.getItem('ponto_auth_data');
+              if (s) { const d = JSON.parse(s); saveAndLogin(d.id, d.token); } else setStatus('waiting_link');
+           }
+        }, []);
+
+        const saveAndLogin = (id, token) => {
+           setParams({ id, token });
+           google.script.run.withSuccessHandler(r => {
+              if (r.nome) {
+                 localStorage.setItem('ponto_auth_data', JSON.stringify({ id, token }));
+                 setBolsistaName(r.nome); setEntryTime(r.entryTime); setExitTime(r.exitTime); setLastAction(r.lastAction); setTargetHours(Number(r.horasDia));
+                 setStatus('ready'); initGPS();
+              } else {
+                 localStorage.removeItem('ponto_auth_data'); setStatus('waiting_link'); if(id && token) alert("Link inválido.");
+              }
+           }).withFailureHandler(() => setStatus(status === 'loading' ? 'waiting_link' : status)).getBolsistaInfo(id, token);
+        };
+
+        const initGPS = () => {
+           setGpsState('searching');
+           navigator.geolocation.getCurrentPosition(p => { setLocation(p.coords); setGpsState('acquired'); }, () => setGpsState('denied'), { enableHighAccuracy: true, timeout: 20000 });
+        };
+
+        const handleManualLogin = (e) => {
+           e.preventDefault();
+           if (inputUrl.includes('?')) {
+              const u = new URL(inputUrl), p = new URLSearchParams(u.search);
+              setStatus('loading'); saveAndLogin(p.get('id'), p.get('token'));
+           } else alert("Link inválido.");
+        };
+
+        const startCamera = async (type) => { setPunchType(type); setStatus('punching'); try { const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }); if(videoRef.current) videoRef.current.srcObject = s; } catch(e) { alert("Câmera necessária."); setStatus('ready'); } };
+
+        const enviarRegistro = () => {
+           const cv = document.createElement('canvas'); cv.width=320; cv.height=240; const ctx = cv.getContext('2d');
+           if(videoRef.current) { ctx.translate(320,0); ctx.scale(-1,1); ctx.drawImage(videoRef.current,0,0,320,240); videoRef.current.srcObject.getTracks().forEach(t=>t.stop()); }
+           setStatus('sending');
+           google.script.run.withSuccessHandler(r => { if(r.ok){ setResult(r); setStatus('success'); } else { alert("Erro: " + r.msg); setStatus('ready'); } }).registrarPonto({ pessoaId: params.id, token: params.token, tipo: punchType, lat: location?.latitude, lng: location?.longitude, prec: location?.accuracy, fotoBase64: cv.toDataURL('image/jpeg', 0.7) });
+        };
+
+        if (status === 'loading') return <div className="h-screen flex flex-col items-center justify-center bg-gray-50 fade-in"><div className="spinner border-green-500 mb-4"></div><p className="text-gray-600">Conectando...</p></div>;
+        if (status === 'waiting_link') return (
+           <div className="h-screen flex items-center justify-center bg-gray-50 p-6 fade-in"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm border"><div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4"><Icon.Link /></div><h2 className="text-xl font-bold text-center mb-2">Bem-vindo</h2><p className="text-sm text-gray-500 mb-4 text-center">Cole seu link de acesso exclusivo:</p><form onSubmit={handleManualLogin}><textarea className="w-full border p-3 mb-4 rounded-xl bg-gray-50 resize-none" rows="3" placeholder="https://..." value={inputUrl} onChange={e=>setInputUrl(e.target.value)}></textarea><button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg">Entrar</button></form></div></div>
+        );
+        if (status === 'success') return (
+           <div className="h-screen flex flex-col items-center justify-center p-6 text-center bg-white fade-in"><Icon.Check /><h2 className="text-2xl font-bold text-green-700 mt-4">Registrado!</h2><p className="text-4xl font-bold mt-2 text-gray-800">{result.timestamp.split(' ')[1]}</p><p className="text-gray-500 mt-1">{result.status}</p><button onClick={()=>{setResult(null); setStatus('loading'); saveAndLogin(params.id, params.token);}} className="mt-10 bg-green-50 text-green-800 px-8 py-3 rounded-full font-bold border border-green-100">Voltar</button></div>
+        );
+        if (status === 'punching') return (
+           <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-50 fade-in"><video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover scale-x-[-1] opacity-80"></video><div className="absolute bottom-10 w-full px-6 flex gap-4"><button onClick={()=>{if(videoRef.current?.srcObject) videoRef.current.srcObject.getTracks().forEach(t=>t.stop()); setStatus('ready');}} className="flex-1 bg-white text-black py-4 rounded-xl font-bold shadow-lg">Cancelar</button><button onClick={enviarRegistro} className="flex-1 bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg flex justify-center items-center gap-2"><Icon.Camera/> Confirmar</button></div><div className="absolute top-10 text-white font-bold text-xl bg-black/30 px-4 py-2 rounded-full backdrop-blur-sm">Registrar {punchType}</div></div>
+        );
+
+        const isBlocked = (type) => {
+           if (gpsState !== 'acquired') return true;
+           if (type === 'Entrada' && (lastAction === 'Entrada' || lastAction === 'Intervalo-Fim')) return true;
+           if (type === 'Saida' && lastAction === 'Saida') return true;
+           return false;
+        };
+
+        return (
+          <div className="min-h-screen max-w-md mx-auto bg-white shadow-xl flex flex-col relative">
+             <audio ref={phantomAudioRef} loop preload="auto" src="https://github.com/anars/blank-audio/raw/master/10-minutes-of-silence.mp3"></audio>
+             {activeAlert && <div className="fixed top-0 left-0 right-0 z-[100] p-4 slide-down"><div className="bg-white border-l-4 border-orange-500 shadow-2xl rounded-lg p-4 flex items-start gap-3"><div className="text-orange-500 animate-bounce"><Icon.Alert/></div><div className="flex-1"><h4 className="font-bold">{activeAlert.title}</h4><p className="text-sm">{activeAlert.body}</p></div><button onClick={()=>setActiveAlert(null)}>✕</button></div></div>}
+             <div className={`p-6 text-white text-center rounded-b-3xl shadow-lg z-10 relative ${gpsState==='denied'?'bg-red-600':'bg-green-700'}`}><button onClick={()=>setSettingsOpen(true)} className={`absolute top-4 right-4 text-green-100 hover:text-white bg-white/20 p-2 rounded-full ${notifConfig.enabled?'bell-shake':''}`}><Icon.Bell/></button><h1 className="text-2xl font-bold mt-2">PontoWeb</h1><div className="flex flex-col items-center mt-1 mb-1"><span className="text-4xl font-mono font-bold tracking-widest">{currentTime.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span></div><div className={`flex justify-center items-center gap-2 text-sm opacity-90 mt-2 py-1 px-3 rounded-full inline-flex ${gpsState==='denied'?'bg-red-800 animate-pulse font-bold':'bg-black/20'}`}>{notifConfig.enabled && <Icon.Zap/>} {gpsState==='searching'?'Procurando GPS...':gpsState==='denied'?'GPS Bloqueado!':'Localização Ativa'}</div></div>
+             {status==='sending' && <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center fade-in"><div className="spinner border-green-500 mb-4"></div><p className="text-green-700 font-bold animate-pulse">Enviando...</p></div>}
+             <div className="flex-1 p-6 flex flex-col justify-center gap-4"><div className="text-center mb-2"><p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Bolsista</p><div className="flex items-center justify-center gap-2 mb-2"><h3 className="text-xl font-bold text-gray-800">{bolsistaName}</h3><button onClick={()=>{if(confirm("Sair?")){localStorage.removeItem('ponto_auth_data'); setStatus('waiting_link');}}} className="bg-gray-100 p-1 rounded-full"><Icon.LogOut/></button></div><div className="flex gap-2 justify-center mt-2 flex-wrap text-sm">{entryTime && <span className="bg-blue-50 text-blue-700 px-3 py-1 font-bold rounded-full border border-blue-100">Entrada: {entryTime}</span>}{exitTime && <span className="bg-orange-50 text-orange-700 px-3 py-1 font-bold rounded-full border border-orange-100">Saída: {exitTime}</span>}</div></div>{gpsState === 'denied' && <div className="bg-red-50 text-red-700 p-3 rounded-lg text-center text-sm font-bold">🚫 Ative a localização no navegador.</div>}<button disabled={isBlocked('Entrada')} onClick={()=>startCamera('Entrada')} className="bg-green-50 text-green-700 border-2 border-green-200 p-5 rounded-2xl font-bold text-xl hover:bg-green-100 active:scale-95 disabled:opacity-50 transition-all">ENTRADA</button><button disabled={isBlocked('Saida')} onClick={()=>startCamera('Saida')} className="bg-red-50 text-red-700 border-2 border-red-200 p-5 rounded-2xl font-bold text-xl hover:bg-red-100 active:scale-95 disabled:opacity-50 transition-all">SAÍDA</button><div className="grid grid-cols-2 gap-4"><button disabled={gpsState!=='acquired'} onClick={()=>startCamera('Intervalo-Inicio')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border hover:bg-gray-100 active:scale-95 disabled:opacity-50">Início Int.</button><button disabled={gpsState!=='acquired'} onClick={()=>startCamera('Intervalo-Fim')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border hover:bg-gray-100 active:scale-95 disabled:opacity-50">Fim Int.</button></div></div>
+             {settingsOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 fade-in">
+                   <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl">
+                      <div className="flex justify-between items-center mb-6 border-b pb-2"><h3 className="font-bold text-lg flex items-center gap-2"><Icon.Bell/> Configurações</h3><button onClick={()=>setSettingsOpen(false)} className="text-gray-400 text-2xl">&times;</button></div>
+                      <div className="grid grid-cols-1 gap-3 mb-4">
+                         <button onClick={addToCalendar} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-indigo-700 active:scale-95"><Icon.Calendar/> {entryTime ? "Agendar Saída na Agenda" : "Agendar Entrada na Agenda"}</button>
+                         {isAndroid && (<button onClick={setNativeAlarm} className="w-full bg-orange-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-orange-700 active:scale-95"><Icon.Clock/> Definir Alarme no Android</button>)}
+                         <button type="button" onClick={requestPushPermission} disabled={loadingPush} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm active:scale-95 ${loadingPush ? 'bg-gray-400 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600'} text-white`}>
+                           {loadingPush ? 'Ativando...' : <><Icon.Bell/> Ativar Push Notification</>}
+                         </button>
+                         <button onClick={testNotification} className="w-full bg-blue-100 text-blue-700 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-blue-200 active:scale-95">
+                           <Icon.Bell/> Testar Notificação (Local)
+                         </button>
+                      </div>
+                      <form onSubmit={(e)=>{e.preventDefault(); const fd=new FormData(e.target); const c={enabled:notifConfig.enabled, entryTimeStr:fd.get('eT'), exitTimeStr:fd.get('xT'), reminderMins:Number(fd.get('rm'))}; setNotifConfig(c); localStorage.setItem('pontoWebConfig', JSON.stringify(c)); setSettingsOpen(false); if(c.enabled) startKeepAlive();}}>
+                         <div className="space-y-4 mb-6"><div><label className="block text-xs font-bold text-gray-500 uppercase">Entrada</label><input type="time" name="eT" defaultValue={notifConfig.entryTimeStr} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase">Saída (Opcional)</label><input type="time" name="xT" defaultValue={notifConfig.exitTimeStr} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase">Avisar antes (min)</label><input type="number" name="rm" defaultValue={notifConfig.reminderMins} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div></div>
+                         <button type="button" onClick={()=>{Notification.requestPermission().then(p=>{if(p==='granted') setNotifConfig(c=>({...c, enabled:true})); else alert("Permissão negada");});}} className={`w-full py-2 mb-2 rounded-lg font-bold text-sm ${notifConfig.enabled?'bg-green-100 text-green-700':'bg-gray-200 text-gray-700'}`}>{notifConfig.enabled ? '🔔 Monitoramento Ativo' : '🔕 Ativar Monitoramento'}</button>
+                         <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow">Salvar</button>
+                      </form>
+                   </div>
+                </div>
+             )}
+          </div>
+        );
+      }
+
+      function Main() {
+        const [isStandalone, setIsStandalone] = useState(false);
+        const [promptEvent, setPromptEvent] = useState(null);
+
+        useEffect(() => {
+          if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) setIsStandalone(true);
+          window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); setPromptEvent(e); });
+        }, []);
+
+        return isStandalone ? <TimeClock /> : <InstallGuide promptEvent={promptEvent} />;
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<Main />);
+    </script>
+  </body>
+</html>
