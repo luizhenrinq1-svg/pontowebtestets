@@ -257,7 +257,6 @@
 
           try {
             // Passo 3: Pedir permissão ao usuário
-            // (Se já foi negado antes, isso retorna 'denied' imediatamente sem popup)
             const permission = await Notification.requestPermission();
             
             if (permission !== 'granted') {
@@ -267,18 +266,27 @@
             }
 
             // Passo 4: Garantir que o Service Worker está pronto
-            alert("Permissão OK. Conectando ao serviço de fundo...");
+            alert("Permissão OK. Registrando Service Worker...");
             
-            const registration = await navigator.serviceWorker.ready;
-            
-            if (!registration) {
-                alert("ERRO: Service Worker não encontrado. Tente reinstalar o app.");
+            let registration;
+            try {
+                // Força o registro para garantir que o arquivo sw.js existe e é acessível
+                registration = await navigator.serviceWorker.register('./sw.js');
+                
+                // Aguarda ele estar pronto (timeout de 10s para não travar para sempre)
+                alert("SW registrado. Aguardando ativação (pode demorar)...");
+                const readyPromise = navigator.serviceWorker.ready;
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Tempo limite excedido")), 10000));
+                
+                registration = await Promise.race([readyPromise, timeoutPromise]);
+            } catch (e) {
+                alert("ERRO NO SW: " + e.message + ". Verifique se o arquivo sw.js está na pasta correta no GitHub.");
                 setLoadingPush(false);
                 return;
             }
 
             // Passo 5: Pedir o Token ao Firebase
-            alert("Conectado. Gerando token de identificação...");
+            alert("Conectado ao SW. Gerando token Firebase...");
             
             const currentToken = await messaging.getToken({ 
                 vapidKey: 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0',
