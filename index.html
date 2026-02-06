@@ -237,7 +237,12 @@
         };
 
         const testNotification = () => {
-           triggerAppAlert("Teste PontoWeb", "Isto é um teste de notificação! 🔔");
+           if (Notification.permission !== 'granted') {
+              alert("⚠️ Permissão não concedida. Clique em 'Ativar Push Notification' primeiro.");
+              return;
+           }
+           // Adiciona timestamp para evitar bloqueio por duplicidade e testa o SW se disponível
+           triggerAppAlert("Teste PontoWeb", "Notificação de teste! 🔔 " + new Date().toLocaleTimeString());
         };
 
         // --- SISTEMA DE NOTIFICAÇÃO (DIAGNÓSTICO COMPLETO) ---
@@ -338,12 +343,35 @@
 
         const triggerAppAlert = (title, body) => {
            const now = Date.now();
-           if (lastNotifRef.current && lastNotifRef.current.body === body && (now - lastNotifRef.current.time < 300000)) return;
+           // Ignora o bloqueio de 5 minutos APENAS se for um teste
+           if (title !== "Teste PontoWeb" && lastNotifRef.current && lastNotifRef.current.body === body && (now - lastNotifRef.current.time < 300000)) return;
+           
            if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
            lastNotifRef.current = { body, time: now };
+           
+           // Alerta Visual no App
            setActiveAlert({ title, body });
            setTimeout(() => setActiveAlert(null), 15000);
-           if (typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification(title, { body, icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', tag: 'pontoweb' });
+           
+           // Notificação do Sistema
+           if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+              // Tenta via Service Worker primeiro (Melhor para Android)
+              if ('serviceWorker' in navigator) {
+                 navigator.serviceWorker.ready.then(registration => {
+                    registration.showNotification(title, { 
+                       body, 
+                       icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', 
+                       tag: 'pontoweb',
+                       vibrate: [300, 100, 300]
+                    });
+                 }).catch(() => {
+                    // Fallback se SW falhar
+                    new Notification(title, { body, icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', tag: 'pontoweb' });
+                 });
+              } else {
+                 new Notification(title, { body, icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', tag: 'pontoweb' });
+              }
+           }
         };
 
         const checkNotifications = () => {
