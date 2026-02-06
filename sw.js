@@ -1,7 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'pontoweb-v4-heavy-vibration';
+const CACHE_NAME = 'pontoweb-v5-final';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -13,7 +13,6 @@ const ASSETS_TO_CACHE = [
   'https://cdn-icons-png.flaticon.com/512/2983/2983818.png'
 ];
 
-// Configuração do Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyCn89LRlH1lksZ811--jb2jlB2iZS5NH1s",
   authDomain: "pontoweb-dc8dd.firebaseapp.com",
@@ -28,17 +27,18 @@ try {
     firebase.initializeApp(firebaseConfig);
     const messaging = firebase.messaging();
 
-    // Configuração para quando o app está FECHADO (Background)
     messaging.onBackgroundMessage((payload) => {
       console.log('Push recebido:', payload);
       
-      const notificationTitle = payload.notification?.title || 'PontoWeb';
+      // FIX: Lê de 'data' (novo padrão) ou 'notification' (fallback)
+      const data = payload.data || payload.notification;
+      
+      const notificationTitle = data?.title || 'PontoWeb';
       const notificationOptions = {
-        body: payload.notification?.body || 'Aviso de horário',
+        body: data?.body || 'Aviso de horário',
         icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png',
         
-        // --- CONFIGURAÇÃO DE VIBRAÇÃO FORTE ---
-        // Padrão: [Vibra 3s, Pausa 1s, Vibra 3s, Pausa 1s, Vibra 3s]
+        // Vibração Forte: [Vibra 3s, Pausa 1s, Vibra 3s...]
         vibrate: [3000, 1000, 3000, 1000, 3000], 
         renotify: true,           
         tag: 'pontoweb-alert',    
