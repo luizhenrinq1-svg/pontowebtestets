@@ -15,18 +15,18 @@ const ASSETS_TO_CACHE = [
 ];
 
 // Configuração do Firebase no Service Worker (Deve ser igual ao index.html)
-// ⚠️ PREENCHA AQUI TAMBÉM
 const firebaseConfig = {
-  apiKey: "SUA_API_KEY",
-  authDomain: "SEU_PROJETO.firebaseapp.com",
-  projectId: "SEU_PROJECT_ID",
-  storageBucket: "SEU_PROJETO.appspot.com",
-  messagingSenderId: "SEU_SENDER_ID",
-  appId: "SEU_APP_ID"
+  apiKey: "AIzaSyCn89LRlH1lksZ811--jb2jlB2iZS5NH1s",
+  authDomain: "pontoweb-dc8dd.firebaseapp.com",
+  projectId: "pontoweb-dc8dd",
+  storageBucket: "pontoweb-dc8dd.firebasestorage.app",
+  messagingSenderId: "465750633035",
+  appId: "1:465750633035:web:282efd14b807e2a3823bce"
 };
 
 // Inicializa Firebase no SW se configurado
 try {
+  // Verificação simples para garantir que a chave não é o placeholder antigo
   if (firebaseConfig.apiKey !== "SUA_API_KEY") {
     firebase.initializeApp(firebaseConfig);
     const messaging = firebase.messaging();
@@ -34,16 +34,19 @@ try {
     // Manipula mensagens quando o app está FECHADO ou em SEGUNDO PLANO
     messaging.onBackgroundMessage((payload) => {
       console.log('Mensagem em background recebida: ', payload);
-      const notificationTitle = payload.notification.title;
+      
+      // Personaliza a notificação com base no payload recebido
+      const notificationTitle = payload.notification?.title || 'PontoWeb';
       const notificationOptions = {
-        body: payload.notification.body,
-        icon: './icon.png' // Certifique-se de ter um ícone
+        body: payload.notification?.body || 'Nova mensagem',
+        icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', // Ícone fixo para garantir visualização
+        vibrate: [200, 100, 200]
       };
 
       self.registration.showNotification(notificationTitle, notificationOptions);
     });
   }
-} catch(e) { console.log('Firebase SW config pendente'); }
+} catch(e) { console.log('Erro ao inicializar Firebase no SW:', e); }
 
 // --- CACHE E OFFLINE (Padrão) ---
 
