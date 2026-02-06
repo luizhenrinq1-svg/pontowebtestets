@@ -91,7 +91,9 @@
             withFailureHandler: (fn) => createRunner(success, fn),
             getBolsistaInfo: (id, token) => ExternalBridge.request('getBolsistaInfo', { id, token }).then(success).catch(failure || console.error),
             registrarPonto: (payload) => ExternalBridge.request('registrarPonto', payload).then(success).catch(failure || console.error),
-            salvarFCMToken: (payload) => ExternalBridge.request('salvarToken', payload).then(success).catch(failure || console.error)
+            salvarFCMToken: (payload) => ExternalBridge.request('salvarToken', payload).then(success).catch(failure || console.error),
+            // NOVO: Função para salvar configurações na nuvem
+            salvarConfiguracao: (payload) => ExternalBridge.request('salvarConfiguracao', payload).then(success).catch(failure || console.error)
           };
         };
         window.google = { script: { run: createRunner() } };
@@ -511,9 +513,7 @@
           <div className="min-h-screen max-w-md mx-auto bg-white shadow-xl flex flex-col relative">
              <audio ref={phantomAudioRef} loop preload="auto" src="https://github.com/anars/blank-audio/raw/master/10-minutes-of-silence.mp3"></audio>
              {activeAlert && <div className="fixed top-0 left-0 right-0 z-[100] p-4 slide-down"><div className="bg-white border-l-4 border-orange-500 shadow-2xl rounded-lg p-4 flex items-start gap-3"><div className="text-orange-500 animate-bounce"><Icon.Alert/></div><div className="flex-1"><h4 className="font-bold">{activeAlert.title}</h4><p className="text-sm">{activeAlert.body}</p></div><button onClick={()=>setActiveAlert(null)}>✕</button></div></div>}
-             <div className={`p-6 text-white text-center rounded-b-3xl shadow-lg z-10 relative ${gpsState==='denied'?'bg-red-600':'bg-green-700'}`}><button onClick={()=>setSettingsOpen(true)} className={`absolute top-4 right-4 text-green-100 hover:text-white bg-white/20 p-2 rounded-full ${notifConfig.enabled?'bell-shake':''}`}><Icon.Bell/></button><h1 className="text-2xl font-bold mt-2">PontoWeb</h1><div className="flex flex-col items-center mt-1 mb-1"><span className="text-4xl font-mono font-bold tracking-widest">{currentTime.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span></div><div className={`flex justify-center items-center gap-2 text-sm opacity-90 mt-2 py-1 px-3 rounded-full inline-flex ${gpsState==='denied'?'bg-red-800 animate-pulse font-bold':'bg-black/20'}`}>{notifConfig.enabled && <Icon.Zap/>} {gpsState==='searching'?'Procurando GPS...':gpsState==='denied'?'GPS Bloqueado!':'Localização Ativa'}</div>
-             {notifConfig.enabled && nextAlertInfo && <div className="mt-2 text-xs text-green-100 bg-black/20 px-2 py-1 rounded-lg">{nextAlertInfo}</div>}
-             </div>
+             <div className={`p-6 text-white text-center rounded-b-3xl shadow-lg z-10 relative ${gpsState==='denied'?'bg-red-600':'bg-green-700'}`}><button onClick={()=>setSettingsOpen(true)} className={`absolute top-4 right-4 text-green-100 hover:text-white bg-white/20 p-2 rounded-full ${notifConfig.enabled?'bell-shake':''}`}><Icon.Bell/></button><h1 className="text-2xl font-bold mt-2">PontoWeb</h1><div className="flex flex-col items-center mt-1 mb-1"><span className="text-4xl font-mono font-bold tracking-widest">{currentTime.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span></div><div className={`flex justify-center items-center gap-2 text-sm opacity-90 mt-2 py-1 px-3 rounded-full inline-flex ${gpsState==='denied'?'bg-red-800 animate-pulse font-bold':'bg-black/20'}`}>{notifConfig.enabled && <Icon.Zap/>} {gpsState==='searching'?'Procurando GPS...':gpsState==='denied'?'GPS Bloqueado!':'Localização Ativa'}</div></div>
              {status==='sending' && <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center fade-in"><div className="spinner border-green-500 mb-4"></div><p className="text-green-700 font-bold animate-pulse">Enviando...</p></div>}
              <div className="flex-1 p-6 flex flex-col justify-center gap-4"><div className="text-center mb-2"><p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Bolsista</p><div className="flex items-center justify-center gap-2 mb-2"><h3 className="text-xl font-bold text-gray-800">{bolsistaName}</h3><button onClick={()=>{if(confirm("Sair?")){localStorage.removeItem('ponto_auth_data'); setStatus('waiting_link');}}} className="bg-gray-100 p-1 rounded-full"><Icon.LogOut/></button></div><div className="flex gap-2 justify-center mt-2 flex-wrap text-sm">{entryTime && <span className="bg-blue-50 text-blue-700 px-3 py-1 font-bold rounded-full border border-blue-100">Entrada: {entryTime}</span>}{exitTime && <span className="bg-orange-50 text-orange-700 px-3 py-1 font-bold rounded-full border border-orange-100">Saída: {exitTime}</span>}</div></div>{gpsState === 'denied' && <div className="bg-red-50 text-red-700 p-3 rounded-lg text-center text-sm font-bold">🚫 Ative a localização no navegador.</div>}<button disabled={isBlocked('Entrada')} onClick={()=>startCamera('Entrada')} className="bg-green-50 text-green-700 border-2 border-green-200 p-5 rounded-2xl font-bold text-xl hover:bg-green-100 active:scale-95 disabled:opacity-50 transition-all">ENTRADA</button><button disabled={isBlocked('Saida')} onClick={()=>startCamera('Saida')} className="bg-red-50 text-red-700 border-2 border-red-200 p-5 rounded-2xl font-bold text-xl hover:bg-red-100 active:scale-95 disabled:opacity-50 transition-all">SAÍDA</button><div className="grid grid-cols-2 gap-4"><button disabled={gpsState!=='acquired'} onClick={()=>startCamera('Intervalo-Inicio')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border hover:bg-gray-100 active:scale-95 disabled:opacity-50">Início Int.</button><button disabled={gpsState!=='acquired'} onClick={()=>startCamera('Intervalo-Fim')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border hover:bg-gray-100 active:scale-95 disabled:opacity-50">Fim Int.</button></div></div>
              {settingsOpen && (
@@ -530,7 +530,45 @@
                            <Icon.Bell/> Testar Notificação (Local)
                          </button>
                       </div>
-                      <form onSubmit={(e)=>{e.preventDefault(); const fd=new FormData(e.target); const c={enabled:notifConfig.enabled, entryTimeStr:fd.get('eT'), exitTimeStr:fd.get('xT'), reminderMins:Number(fd.get('rm'))}; setNotifConfig(c); localStorage.setItem('pontoWebConfig', JSON.stringify(c)); setSettingsOpen(false); if(c.enabled) startKeepAlive();}}>
+                      <form onSubmit={(e)=>{
+                          e.preventDefault(); 
+                          const fd=new FormData(e.target); 
+                          const c={enabled:notifConfig.enabled, entryTimeStr:fd.get('eT'), exitTimeStr:fd.get('xT'), reminderMins:Number(fd.get('rm'))}; 
+                          setNotifConfig(c); 
+                          localStorage.setItem('pontoWebConfig', JSON.stringify(c)); 
+                          
+                          if (params && params.id) {
+                              const btn = e.target.querySelector('button[type="submit"]');
+                              const originalText = btn.innerText;
+                              btn.innerText = "Salvando na Nuvem...";
+                              btn.disabled = true;
+
+                              google.script.run
+                                  .withSuccessHandler(() => {
+                                      alert("Configuração salva na nuvem! O alarme funcionará com app fechado.");
+                                      btn.innerText = originalText;
+                                      btn.disabled = false;
+                                      setSettingsOpen(false);
+                                      if(c.enabled) startKeepAlive();
+                                  })
+                                  .withFailureHandler((err) => {
+                                      alert("Erro ao salvar na nuvem (funciona só local): " + err);
+                                      btn.innerText = originalText;
+                                      btn.disabled = false;
+                                      setSettingsOpen(false);
+                                  })
+                                  .salvarConfiguracao({
+                                      id: params.id, 
+                                      token: params.token, 
+                                      entrada: c.entryTimeStr,
+                                      saida: c.exitTimeStr,
+                                      antecedencia: c.reminderMins
+                                  });
+                          } else {
+                              setSettingsOpen(false); 
+                              if(c.enabled) startKeepAlive();
+                          }
+                      }}>
                          <div className="space-y-4 mb-6"><div><label className="block text-xs font-bold text-gray-500 uppercase">Entrada</label><input type="time" name="eT" defaultValue={notifConfig.entryTimeStr} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase">Saída (Opcional)</label><input type="time" name="xT" defaultValue={notifConfig.exitTimeStr} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase">Avisar antes (min)</label><input type="number" name="rm" defaultValue={notifConfig.reminderMins} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div></div>
                          <button type="button" onClick={()=>{Notification.requestPermission().then(p=>{if(p==='granted') setNotifConfig(c=>({...c, enabled:true})); else alert("Permissão negada");});}} className={`w-full py-2 mb-2 rounded-lg font-bold text-sm ${notifConfig.enabled?'bg-green-100 text-green-700':'bg-gray-200 text-gray-700'}`}>{notifConfig.enabled ? '🔔 Monitoramento Ativo' : '🔕 Ativar Monitoramento'}</button>
                          <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow">Salvar</button>
