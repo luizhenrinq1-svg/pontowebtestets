@@ -4,18 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PontoWeb Unespar</title>
+    
+    <!-- Configurações PWA -->
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#166534">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2983/2983818.png">
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/2983/2983818.png">
+
+    <!-- Bibliotecas React e Tailwind -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- FIREBASE -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js"></script>
+
     <style>
       body { background-color: #f0fdf4; color: #166534; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
       .spinner { border: 4px solid #dcfce7; width: 40px; height: 40px; border-radius: 50%; border-left-color: #16a34a; animation: spin 1s linear infinite; }
@@ -37,7 +44,8 @@
     <script type="text/babel">
       const { useState, useEffect, useRef } = React;
 
-      // === CONFIGURAÇÃO ===
+      // ======================================================================
+      // CONFIGURAÇÃO GERAL
       const API_URL = "https://script.google.com/macros/s/AKfycbyhvzFHFiUj0sSNOzD8wQft9y_yU8OuqN3SSUCfuiwYyzD8xx5JeEMSd9jjOMq-OpXTig/exec"; 
       const VAPID_KEY = 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0';
       const firebaseConfig = {
@@ -48,6 +56,10 @@
         messagingSenderId: "465750633035",
         appId: "1:465750633035:web:282efd14b807e2a3823bce"
       };
+
+      // CHAVES DE CACHE LOCAL
+      const CACHE_KEY_USER = 'pontoweb_user_data';
+      const CACHE_KEY_AUTH = 'ponto_auth_data';
 
       // === BANCO DE DADOS OFFLINE (IndexedDB) ===
       const DB_NAME = "PontoWebDB";
@@ -67,7 +79,6 @@
           return new Promise((resolve, reject) => {
             const tx = db.transaction(STORE_NAME, "readwrite");
             const store = tx.objectStore(STORE_NAME);
-            // Adiciona timestamp se não tiver, para saber quando foi criado
             if (!data.timestampCriacao) data.timestampCriacao = new Date().toISOString();
             store.add(data);
             tx.oncomplete = () => resolve(true);
@@ -104,6 +115,10 @@
 
       const ExternalBridge = {
         request: async (action, payload = {}) => {
+          if (!API_URL.startsWith('http')) {
+            alert("ERRO DE CONFIGURAÇÃO: URL da API inválida.");
+            throw new Error("URL não configurada");
+          }
           const response = await fetch(API_URL, {
             method: 'POST',
             body: JSON.stringify({ action, ...payload })
@@ -129,7 +144,6 @@
         window.google = { script: { run: createRunner() } };
       }
 
-      // Ícones SVG
       const Icon = {
         Map: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
         Camera: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
@@ -138,9 +152,12 @@
         Bell: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>,
         Alert: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>,
         Zap: () => <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>,
+        Link: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>,
+        Download: () => <svg className="w-6 h-6 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>,
+        LogOut: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>,
         Cloud: () => <svg className="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>,
         CloudSync: () => <svg className="w-4 h-4 inline-block mr-1 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>,
-        LogOut: () => <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>,
+        Info: () => <svg className="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
         Settings: () => <svg className="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
       };
 
@@ -187,6 +204,7 @@
         const [settingsOpen, setSettingsOpen] = useState(false);
         const [notifConfig, setNotifConfig] = useState({ enabled: false, entryTimeStr: '08:00', exitTimeStr: '', reminderMins: 10 });
         const [activeAlert, setActiveAlert] = useState(null);
+        const [monitorActive, setMonitorActive] = useState(false);
         const [inputUrl, setInputUrl] = useState('');
         const [loadingPush, setLoadingPush] = useState(false);
         const [nextAlertInfo, setNextAlertInfo] = useState(''); 
@@ -239,7 +257,19 @@
            if (status === 'loading') {
               const timeout = setTimeout(() => {
                  // Tenta carregar do cache se estiver offline, senão pede link
-                 if (isOnline) { localStorage.removeItem('ponto_auth_data'); setStatus('waiting_link'); }
+                 if (isOnline) { 
+                     // Antes de resetar, verifica se já temos dados cacheados válidos
+                     const cachedUser = localStorage.getItem(CACHE_KEY_USER);
+                     if (!cachedUser) {
+                        localStorage.removeItem(CACHE_KEY_AUTH); 
+                        setStatus('waiting_link'); 
+                     } else {
+                        // Se temos cache, mantém (pode ser instabilidade momentânea)
+                        const data = JSON.parse(cachedUser);
+                        setBolsistaName(data.nome);
+                        setStatus('ready');
+                     }
+                 }
                  else { /* Mantém loading ou carrega estado anterior se possível */ }
               }, 10000);
               return () => clearTimeout(timeout);
@@ -312,34 +342,66 @@
            const id = u.get('id'), token = u.get('token');
            if (id && token) saveAndLogin(id, token);
            else {
-              const s = localStorage.getItem('ponto_auth_data');
+              const s = localStorage.getItem(CACHE_KEY_AUTH);
               if (s) { const d = JSON.parse(s); saveAndLogin(d.id, d.token); } else setStatus('waiting_link');
            }
         }, []);
 
         const saveAndLogin = (id, token) => {
            setParams({ id, token });
-           // Se offline, assume login com dados locais (se tiver) ou mostra erro
+           
+           // 1. Tenta carregar do Cache Local Imediatamente
+           const cachedUser = localStorage.getItem(CACHE_KEY_USER);
+           if (cachedUser) {
+               try {
+                   const data = JSON.parse(cachedUser);
+                   setBolsistaName(data.nome);
+                   setEntryTime(data.entryTime);
+                   setExitTime(data.exitTime);
+                   setLastAction(data.lastAction);
+                   setTargetHours(Number(data.horasDia));
+                   setStatus('ready');
+                   // Não retorna, deixa o fetch acontecer em background para atualizar
+               } catch(e) { console.error("Erro leitura cache", e); }
+           }
+
+           // Se offline, só usa o cache e para
            if (!navigator.onLine) {
-               setStatus('ready'); // Assume pronto para permitir registro offline
-               setBolsistaName("Modo Offline");
+               if (!cachedUser) {
+                   setBolsistaName("Modo Offline");
+                   setStatus('ready');
+               }
                return;
            }
 
+           // 2. Busca dados frescos do servidor (Stale-While-Revalidate)
            google.script.run.withSuccessHandler(r => {
               if (r.nome) {
-                 localStorage.setItem('ponto_auth_data', JSON.stringify({ id, token }));
-                 setBolsistaName(r.nome); setEntryTime(r.entryTime); setExitTime(r.exitTime); setLastAction(r.lastAction); setTargetHours(Number(r.horasDia));
-                 setStatus('ready'); initGPS();
+                 // Salva Auth
+                 localStorage.setItem(CACHE_KEY_AUTH, JSON.stringify({ id, token }));
+                 
+                 // Atualiza Cache de Dados
+                 localStorage.setItem(CACHE_KEY_USER, JSON.stringify(r));
+                 
+                 // Atualiza Estado
+                 setBolsistaName(r.nome); 
+                 setEntryTime(r.entryTime); 
+                 setExitTime(r.exitTime); 
+                 setLastAction(r.lastAction); 
+                 setTargetHours(Number(r.horasDia));
+                 
+                 setStatus('ready'); 
+                 initGPS();
               } else {
-                 localStorage.removeItem('ponto_auth_data'); setStatus('waiting_link'); if(id && token) alert("Link inválido.");
+                 // Se o servidor rejeitar, limpa tudo
+                 localStorage.removeItem(CACHE_KEY_AUTH);
+                 localStorage.removeItem(CACHE_KEY_USER);
+                 setStatus('waiting_link'); 
+                 if(id && token) alert("Link inválido.");
               }
            }).withFailureHandler(() => {
-               // Se falhar por rede, entra em modo offline se tiver dados salvos
-               if(localStorage.getItem('ponto_auth_data')) {
-                   setStatus('ready');
-                   setBolsistaName("Modo Offline");
-               } else {
+               // Falha de rede: Se já carregou do cache, ok. Se não, avisa.
+               if(!cachedUser) {
                    setStatus('waiting_link');
                }
            }).getBolsistaInfo(id, token);
@@ -394,7 +456,15 @@
            // Tenta enviar se tiver online
            if (navigator.onLine) {
                google.script.run.withSuccessHandler(r => { 
-                   if(r.ok){ setResult(r); setStatus('success'); } 
+                   if(r.ok){ 
+                       setResult(r); 
+                       setStatus('success'); 
+                       // Atualiza cache local imediatamente para refletir a ação
+                       const cached = JSON.parse(localStorage.getItem(CACHE_KEY_USER) || '{}');
+                       cached.lastAction = punchType;
+                       localStorage.setItem(CACHE_KEY_USER, JSON.stringify(cached));
+                       setLastAction(punchType);
+                   } 
                    else { alert("Erro servidor: " + r.msg); setStatus('ready'); } 
                }).withFailureHandler(async (err) => {
                    // Falhou o envio? Salva Offline
@@ -409,6 +479,13 @@
                OfflineDB.add(registroData).then(() => {
                    setPendingSyncs(p => p + 1);
                    triggerAppAlert("Modo Offline", "Ponto salvo com sucesso! Será sincronizado depois.");
+                   
+                   // Atualiza UI localmente para dar feedback imediato
+                   const cached = JSON.parse(localStorage.getItem(CACHE_KEY_USER) || '{}');
+                   cached.lastAction = punchType;
+                   localStorage.setItem(CACHE_KEY_USER, JSON.stringify(cached));
+                   setLastAction(punchType);
+                   
                    setStatus('ready'); // Volta pra tela inicial
                });
            }
@@ -495,7 +572,7 @@
                       </div>
                       <form onSubmit={(e)=>{e.preventDefault(); const fd=new FormData(e.target); const c={enabled:notifConfig.enabled, entryTimeStr:fd.get('eT'), exitTimeStr:fd.get('xT'), reminderMins:Number(fd.get('rm'))}; setNotifConfig(c); localStorage.setItem('pontoWebConfig', JSON.stringify(c)); if (params?.id) google.script.run.salvarConfiguracao({id: params.id, token: params.token, entrada: c.entryTimeStr, saida: c.exitTimeStr, antecedencia: c.reminderMins}); setSettingsOpen(false);}}>
                          <div className="space-y-4 mb-6"><div><label className="block text-xs font-bold text-gray-500 uppercase">Entrada</label><input type="time" name="eT" defaultValue={notifConfig.entryTimeStr} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase">Saída</label><input type="time" name="xT" defaultValue={notifConfig.exitTimeStr} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase">Avisar antes (min)</label><input type="number" name="rm" defaultValue={notifConfig.reminderMins} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div></div>
-                         <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow">Salvar</button>
+                         <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow">Salvar Alterações</button>
                       </form>
                    </div>
                 </div>
