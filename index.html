@@ -165,12 +165,9 @@
         const wakeLockRef = useRef(null);
         const phantomAudioRef = useRef(null);
         const [isIOS, setIsIOS] = useState(false);
-        const [isAndroid, setIsAndroid] = useState(false);
 
         useEffect(() => {
-          const ua = navigator.userAgent.toLowerCase();
           setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent));
-          setIsAndroid(/android/.test(ua));
           
           if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(console.error);
           
@@ -186,48 +183,6 @@
 
           return () => { clearInterval(timer); clearInterval(notifTimer); clearTimeout(timeout); };
         }, [notifConfig, entryTime, lastAction]);
-
-        // --- FUNÇÕES EXTRAS (CALENDÁRIO & ALARME) ---
-        const addToCalendar = () => {
-           const now = new Date();
-           const fmtNum = (n) => String(n).padStart(2, '0');
-           let title = "", details = "", dateObj = null;
-
-           if (entryTime && targetHours) { // Já entrou, agendar SAÍDA
-              const [h, m] = entryTime.split(':').map(Number);
-              dateObj = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h + targetHours, m);
-              title = "🔴 SAÍDA PONTO (Alarme)";
-              details = "Hora de registrar a saída!";
-           } else if (notifConfig.entryTimeStr) { // Não entrou, agendar ENTRADA
-              const [h, m] = notifConfig.entryTimeStr.split(':').map(Number);
-              dateObj = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
-              title = "🟢 ENTRADA PONTO (Alarme)";
-              details = "Hora de registrar a entrada!";
-           } else {
-              alert("Registre o ponto ou configure o horário primeiro."); return;
-           }
-
-           const dateStr = dateObj.getFullYear() + fmtNum(dateObj.getMonth() + 1) + fmtNum(dateObj.getDate());
-           const timeStr = fmtNum(dateObj.getHours()) + fmtNum(dateObj.getMinutes()) + '00';
-           const endDateTime = dateStr + 'T' + fmtNum(dateObj.getHours()) + fmtNum(dateObj.getMinutes() + 10) + '00';
-           
-           const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dateStr}T${timeStr}/${endDateTime}&details=${encodeURIComponent(details)}&sf=true&output=xml`;
-           window.open(url, '_blank');
-        };
-
-        const setNativeAlarm = () => {
-           if (!isAndroid) { alert("Esta função é exclusiva para Android."); return; }
-           let h, m, title;
-           if (entryTime && targetHours) {
-              const [eh, em] = entryTime.split(':').map(Number);
-              const date = new Date(); date.setHours(eh + targetHours, em);
-              h = date.getHours(); m = date.getMinutes(); title = "Saída PontoWeb";
-           } else if (notifConfig.entryTimeStr) {
-              [h, m] = notifConfig.entryTimeStr.split(':').map(Number); title = "Entrada PontoWeb";
-           } else { alert("Configure o horário primeiro."); return; }
-           
-           window.location.href = `intent:#Intent;action=android.intent.action.SET_ALARM;i.android.intent.extra.alarm.HOUR=${h};i.android.intent.extra.alarm.MINUTES=${m};S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(title)};B.android.intent.extra.alarm.SKIP_UI=false;end`;
-        };
 
         // --- SISTEMA DE NOTIFICAÇÃO ---
         const startKeepAlive = () => {
@@ -415,19 +370,6 @@
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 fade-in">
                    <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl">
                       <div className="flex justify-between items-center mb-6 border-b pb-2"><h3 className="font-bold text-lg flex items-center gap-2"><Icon.Bell/> Configurações</h3><button onClick={()=>setSettingsOpen(false)} className="text-gray-400 text-2xl">&times;</button></div>
-                      
-                      {/* NOVAS FUNÇÕES EXTRAS RESTAURADAS */}
-                      <div className="grid grid-cols-1 gap-3 mb-4">
-                         <button onClick={addToCalendar} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-indigo-700 active:scale-95">
-                           <Icon.Calendar/> {entryTime ? "Agendar Saída na Agenda" : "Agendar Entrada na Agenda"}
-                         </button>
-                         {isAndroid && (
-                            <button onClick={setNativeAlarm} className="w-full bg-orange-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-orange-700 active:scale-95">
-                              <Icon.Clock/> Definir Alarme no Android
-                            </button>
-                         )}
-                      </div>
-
                       <form onSubmit={(e)=>{e.preventDefault(); const fd=new FormData(e.target); const c={enabled:notifConfig.enabled, entryTimeStr:fd.get('eT'), exitTimeStr:fd.get('xT'), reminderMins:Number(fd.get('rm'))}; setNotifConfig(c); localStorage.setItem('pontoWebConfig', JSON.stringify(c)); setSettingsOpen(false); if(c.enabled) startKeepAlive();}}>
                          <div className="space-y-4 mb-6">
                             <div><label className="block text-xs font-bold text-gray-500 uppercase">Entrada</label><input type="time" name="eT" defaultValue={notifConfig.entryTimeStr} className="w-full p-3 bg-gray-50 border rounded-xl font-bold text-center"/></div>
