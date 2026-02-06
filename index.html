@@ -119,8 +119,13 @@
             alert("ERRO DE CONFIGURAÇÃO: URL da API inválida.");
             throw new Error("URL não configurada");
           }
+          // CORREÇÃO CRÍTICA PARA SINCRONIZAÇÃO:
+          // Usar 'text/plain' evita o preflight OPTIONS que o Google Apps Script não suporta bem
+          // Usar 'redirect: follow' garante que seguimos o redirecionamento do Google
           const response = await fetch(API_URL, {
             method: 'POST',
+            redirect: "follow",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
             body: JSON.stringify({ action, ...payload })
           });
           const json = await response.json();
@@ -235,6 +240,12 @@
           
           // Verifica pendências ao iniciar
           checkPendingData();
+          
+          // Tenta sincronizar imediatamente se estiver online
+          if (navigator.onLine) {
+             setTimeout(syncPendingData, 2000);
+          }
+
           // Loop de sincronização a cada 30s
           syncInterval.current = setInterval(syncPendingData, 30000);
 
@@ -293,7 +304,7 @@
            
            for (const rec of records) {
               try {
-                  // Reenvia para o Apps Script
+                  // Reenvia para o Apps Script via ExternalBridge (com text/plain e redirect:follow)
                   const response = await ExternalBridge.request('registrarPonto', rec);
                   if (response.ok) {
                       await OfflineDB.delete(rec.id); // Remove do DB local se sucesso
