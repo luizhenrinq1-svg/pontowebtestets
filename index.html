@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PontoWeb Unespar</title>
     
-    <!-- PWA Setup Melhorado -->
+    <!-- PWA Setup -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#166534">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -35,9 +35,8 @@
 
     <div id="root"></div>
 
-    <!-- SHIM COM EXTERNAL BRIDGE (Lógica Melhorada) -->
+    <!-- SHIM ROBUSTO (CORRIGIDO PARA O ERRO salvarToken) -->
     <script>
-      // URL de Produção (Mantida a do seu projeto oficial)
       const API_URL = "https://script.google.com/macros/s/AKfycbyhvzFHFiUj0sSNOzD8wQft9y_yU8OuqN3SSUCfuiwYyzD8xx5JeEMSd9jjOMq-OpXTig/exec";
 
       const firebaseConfig = {
@@ -57,7 +56,7 @@
         }
       } catch(e) { console.error("Erro Firebase Init:", e); }
 
-      // Bridge de Comunicação (Copiado do código de teste para melhor estabilidade)
+      // 1. Ponte de Rede
       const ExternalBridge = {
         request: async (action, payload = {}) => {
           const response = await fetch(API_URL, {
@@ -66,26 +65,41 @@
             headers: { "Content-Type": "text/plain;charset=utf-8" },
             body: JSON.stringify({ action, ...payload })
           });
-          const json = await response.json();
-          // if (json.error) throw new Error(json.error); // Opcional: tratar erro aqui
-          return json;
+          return await response.json();
         }
       };
 
+      // 2. Simulador (Shim) Corrigido
+      // Agora ele permite chamar .salvarToken() mesmo sem .withFailureHandler()
       if (typeof google === 'undefined') {
+        const createShim = (successFn, failureFn) => {
+          const execute = (action, params) => {
+            ExternalBridge.request(action, params)
+              .then(res => {
+                 if (successFn) successFn(res);
+              })
+              .catch(err => {
+                 if (failureFn) failureFn(err);
+                 else console.error("Erro não tratado no Shim:", err);
+              });
+          };
+
+          return {
+            withSuccessHandler: (fn) => createShim(fn, failureFn),
+            withFailureHandler: (fn) => createShim(successFn, fn),
+            
+            // Funções Mapeadas do Google Apps Script
+            getBolsistaInfo: (id, token) => execute('getBolsistaInfo', { id, token }),
+            registrarPonto: (p) => execute('registrarPonto', p),
+            salvarToken: (p) => execute('salvarToken', p),
+            salvarConfiguracao: (p) => execute('salvarConfiguracao', p),
+            testarPush: (p) => execute('testarPush', p)
+          };
+        };
+
         window.google = {
           script: {
-            run: {
-              withSuccessHandler: (cb) => ({
-                withFailureHandler: (errCb) => ({
-                  getBolsistaInfo: (id, token) => ExternalBridge.request('getBolsistaInfo', { id, token }).then(cb).catch(errCb),
-                  registrarPonto: (p) => ExternalBridge.request('registrarPonto', p).then(cb).catch(errCb),
-                  salvarToken: (p) => ExternalBridge.request('salvarToken', p).then(cb).catch(errCb),
-                  salvarConfiguracao: (p) => ExternalBridge.request('salvarConfiguracao', p).then(cb).catch(errCb),
-                  testarPush: (p) => ExternalBridge.request('testarPush', p).then(cb).catch(errCb)
-                })
-              })
-            },
+            run: createShim(null, null),
             url: { getLocation: (cb) => { cb({ parameter: {} }); } }
           }
         };
@@ -102,7 +116,6 @@
       
       const CACHE_KEY_AUTH = 'ponto_auth_data_v2';
       const CACHE_KEY_NOTIF = 'pontoWebConfig'; 
-      // Nova chave de cache para dados do usuário (Lógica do Teste)
       const CACHE_KEY_DATA = 'pontoweb_user_data_cache';
 
       const VAPID_KEY = 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0';
@@ -149,7 +162,6 @@
            if(savedConfig) setNotifConfig(JSON.parse(savedConfig));
         }, []);
 
-        // Monitor Local (Alarme)
         useEffect(() => {
           const checkNotifications = () => {
              if (!notifConfig.entrada && !notifConfig.saida) return;
@@ -173,7 +185,6 @@
           return () => clearInterval(interval);
         }, [notifConfig]);
 
-        // Install Prompt Listener
         useEffect(() => {
           const handler = (e) => {
             e.preventDefault();
@@ -201,7 +212,6 @@
            }
         };
 
-        // Autenticação com Cache
         useEffect(() => {
           const u = new URLSearchParams(window.location.search);
           const urlId = u.get('id');
@@ -215,7 +225,7 @@
         const saveAndLogin = (id, token) => {
            localStorage.setItem(CACHE_KEY_AUTH, JSON.stringify({ id, token }));
            setParams({ id, token });
-           setStatus('loading'); // Mostra loading inicialmente
+           setStatus('loading');
            loadBolsista(id, token);
            initGPS();
         };
@@ -238,9 +248,7 @@
            } catch (err) { alert("Erro ao processar o link."); }
         };
 
-        // === NOVA LÓGICA DE CARREGAMENTO (CACHE FIRST) ===
         const loadBolsista = (id, token) => {
-           // 1. Carrega do Cache imediatamente (se existir)
            const cachedData = localStorage.getItem(CACHE_KEY_DATA);
            if (cachedData) {
               const data = JSON.parse(cachedData);
@@ -248,13 +256,11 @@
               setStatus('ready');
            }
 
-           // 2. Busca da Rede em segundo plano
            if (navigator.onLine) {
              google.script.run.withSuccessHandler(res => {
                if(res.error) {
                  if(!cachedData) { alert(res.error); localStorage.removeItem(CACHE_KEY_AUTH); setStatus('waiting_link'); }
                } else {
-                 // Salva no cache novo
                  localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(res));
                  applyUserData(res);
                  setStatus('ready');
@@ -263,11 +269,10 @@
                if(!cachedData) { alert("Erro de conexão."); setStatus('waiting_link'); }
              }).getBolsistaInfo(id, token);
            } else if (!cachedData) {
-             setStatus('error-offline'); // Novo estado se não tiver nada
+             setStatus('error-offline');
            }
         };
 
-        // Helper para aplicar dados
         const applyUserData = (data) => {
            setBolsistaName(data.nome || '');
            setEntryTime(data.entryTime || null);
@@ -322,7 +327,6 @@
         const startCamera = async (type) => { setPunchType(type); setStatus('punching'); try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }); if (videoRef.current) videoRef.current.srcObject = stream; } catch(e) { alert('Câmera necessária.'); setStatus('ready'); } };
         
         const confirm = () => {
-          // Lógica Offline adicionada
           if (!navigator.onLine) {
              alert("Você está offline. Conecte-se à internet para registrar o ponto.");
              setStatus('ready');
@@ -339,15 +343,12 @@
              if(res.ok) { 
                setResult(res); 
                setStatus('success');
-               
-               // Atualiza Cache Local (Optimistic UI)
                const currentCache = JSON.parse(localStorage.getItem(CACHE_KEY_DATA) || '{}');
                currentCache.lastAction = punchType;
                if(punchType === 'Entrada') currentCache.entryTime = res.timestamp.split(' ')[1].substring(0,5);
                if(punchType === 'Saida') currentCache.exitTime = res.timestamp.split(' ')[1].substring(0,5);
                localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(currentCache));
                applyUserData(currentCache);
-
              } else { 
                alert("Erro: " + res.msg); 
                setStatus('ready'); 
@@ -506,7 +507,7 @@
                  <div className="flex items-center gap-1"><Icon.Lock /> <span className="font-semibold">Privacidade e Segurança</span></div>
                  <span className="leading-tight max-w-[280px]">Este aplicativo atende e respeita as normas da Política de Privacidade (LGPD).</span>
                </div>
-               <div className="text-[9px] text-gray-300 mt-2 font-mono flex justify-center gap-2 items-center">Versão 4.2 <Icon.Exit /></div>
+               <div className="text-[9px] text-gray-300 mt-2 font-mono flex justify-center gap-2 items-center">Versão 4.3 <Icon.Exit /></div>
             </div>
           </div>
         );
