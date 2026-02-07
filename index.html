@@ -487,6 +487,7 @@
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Lembrar com antecedência (min)</label>
                       <select value={notifConfig.antecedencia} onChange={e => setNotifConfig({...notifConfig, antecedencia: e.target.value})} className="w-full p-3 border rounded-xl bg-gray-50">
+                        <option value="1">1 minuto antes</option>
                         <option value="5">5 minutos antes</option>
                         <option value="10">10 minutos antes</option>
                         <option value="15">15 minutos antes</option>
