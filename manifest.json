@@ -5,7 +5,7 @@
   "display": "standalone",
   "background_color": "#f0fdf4",
   "theme_color": "#166534",
-  "description": "Registo de ponto eletrónico e alertas.",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/2983/2983818.png",
