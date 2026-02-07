@@ -1,5 +1,6 @@
 /**
  * Service Worker para PontoWeb - PWA e Firebase
+ * Versão: Data Message (Silenciosa para o Browser, Ativa para o SW)
  */
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
@@ -20,44 +21,39 @@ const messaging = firebase.messaging();
 
 // === LÓGICA DE BACKGROUND (Quando app está fechado) ===
 messaging.onBackgroundMessage((payload) => {
-  console.log('[sw.js] Recebeu mensagem em background: ', payload);
+  console.log('[sw.js] Mensagem recebida:', payload);
   
-  const notificationTitle = payload.notification.title;
+  // Tenta ler de 'data' (novo padrão) ou 'notification' (fallback)
+  const title = payload.data?.title || payload.notification?.title || "Nova Mensagem";
+  const body = payload.data?.body || payload.notification?.body || "";
+
   const notificationOptions = {
-    body: payload.notification.body,
-    icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png',
-    badge: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png',
-    vibrate: [200, 100, 200, 100, 200], // Vibração padrão
-    requireInteraction: true // Fica na tela até usuário interagir
+    body: body,
+    icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', // Ícone do App
+    badge: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', // Ícone pequeno na barra
+    vibrate: [500, 200, 500, 200, 500], // Vibração Forte
+    requireInteraction: true, // Fica na tela até o usuário clicar
+    tag: 'ponto-notification', // Evita empilhamento excessivo
+    data: {
+      url: '/' // Para onde ir ao clicar
+    }
   };
 
-  return self.registration.showNotification(notificationTitle, notificationOptions);
+  return self.registration.showNotification(title, notificationOptions);
 });
 
-// === LÓGICA DE PWA (Cache Simples) ===
-self.addEventListener('install', (event) => {
-  console.log('SW Instalado');
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', (event) => {
-  console.log('SW Ativado');
-  event.waitUntil(self.clients.claim());
-});
-
-// Intercepta cliques na notificação para abrir o app
+// === LÓGICA DE CLIQUE NA NOTIFICAÇÃO ===
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
+  // Foca na aba aberta ou abre uma nova
   event.waitUntil(
     clients.matchAll({type: 'window'}).then( windowClients => {
-      // Se já tiver aba aberta, foca nela
       for (var i = 0; i < windowClients.length; i++) {
         var client = windowClients[i];
         if (client.url === '/' && 'focus' in client) {
           return client.focus();
         }
       }
-      // Se não, abre nova aba
       if (clients.openWindow) {
         return clients.openWindow('/');
       }
@@ -65,4 +61,6 @@ self.addEventListener('notificationclick', function(event) {
   );
 });
 
-
+// === LÓGICA DE PWA ===
+self.addEventListener('install', (event) => self.skipWaiting());
+self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
