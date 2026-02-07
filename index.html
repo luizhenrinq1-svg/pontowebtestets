@@ -114,7 +114,8 @@
         Lock: () => <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>,
         Link: () => <svg className="w-12 h-12 text-blue-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>,
         Exit: () => <svg className="w-3 h-3 cursor-pointer hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" onClick={() => { if(confirm('Sair da conta?')) { localStorage.clear(); location.reload(); } }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
-        Bell: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        Bell: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>,
+        Download: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
       };
 
       function TimeClock() {
@@ -134,6 +135,7 @@
         const [notifConfig, setNotifConfig] = useState({ entrada: '', saida: '', antecedencia: 10 });
         const [fcmToken, setFcmToken] = useState(null);
         const [pushStatus, setPushStatus] = useState('idle');
+        const [deferredPrompt, setDeferredPrompt] = useState(null);
         
         const videoRef = useRef(null);
 
@@ -170,6 +172,25 @@
           const interval = setInterval(checkNotifications, 60000); 
           return () => clearInterval(interval);
         }, [notifConfig]);
+
+        // Install Prompt Listener
+        useEffect(() => {
+          const handler = (e) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+          };
+          window.addEventListener('beforeinstallprompt', handler);
+          return () => window.removeEventListener('beforeinstallprompt', handler);
+        }, []);
+
+        const handleInstallClick = async () => {
+          if (!deferredPrompt) return;
+          deferredPrompt.prompt();
+          const { outcome } = await deferredPrompt.userChoice;
+          if (outcome === 'accepted') {
+            setDeferredPrompt(null);
+          }
+        };
 
         const triggerAppAlert = (title, body) => {
            try { if('vibrate' in navigator) navigator.vibrate([200, 100, 200]); } catch(e) {}
@@ -384,6 +405,13 @@
               <button onClick={() => setShowSettings(true)} className="absolute top-4 right-4 p-2 bg-green-700/50 rounded-full hover:bg-green-500 transition-colors">
                  <Icon.Bell />
               </button>
+              
+              {deferredPrompt && (
+                <button onClick={handleInstallClick} className="absolute top-4 left-4 p-2 bg-green-700/50 rounded-full hover:bg-green-500 transition-colors animate-bounce">
+                   <Icon.Download />
+                </button>
+              )}
+
               <h1 className="text-2xl font-bold">PontoWeb Unespar</h1>
               <div className="flex flex-col items-center mt-2 mb-1">
                 <span className="text-4xl font-mono font-bold tracking-widest drop-shadow-md">
