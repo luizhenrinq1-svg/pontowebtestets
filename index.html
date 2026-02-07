@@ -1,28 +1,30 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
   <head>
     <base target="_top">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bater Ponto</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PontoWeb Unespar</title>
     
-    <!-- PWA -->
+    <!-- PWA Setup Melhorado -->
     <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2983/2983818.png">
     <meta name="theme-color" content="#166534">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2983/2983818.png">
 
-    <!-- Dependências React & Tailwind -->
+    <!-- Dependências -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- Dependências Firebase (Compat) -->
+    <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js"></script>
 
     <style>
-      body { background-color: #f0fdf4; color: #166534; font-family: sans-serif; user-select: none; }
+      body { background-color: #f0fdf4; color: #166534; font-family: sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; }
       .spinner { border: 4px solid #dcfce7; width: 40px; height: 40px; border-radius: 50%; border-left-color: #16a34a; animation: spin 1s linear infinite; }
       @keyframes spin { 100% { transform: rotate(360deg); } }
       .fade-in { animation: fadeIn 0.3s ease-in; }
@@ -31,11 +33,11 @@
   </head>
   <body>
 
-    <!-- APP REACT -->
     <div id="root"></div>
 
-    <!-- SHIM PARA GITHUB PAGES -->
+    <!-- SHIM COM EXTERNAL BRIDGE (Lógica Melhorada) -->
     <script>
+      // URL de Produção (Mantida a do seu projeto oficial)
       const API_URL = "https://script.google.com/macros/s/AKfycbyhvzFHFiUj0sSNOzD8wQft9y_yU8OuqN3SSUCfuiwYyzD8xx5JeEMSd9jjOMq-OpXTig/exec";
 
       const firebaseConfig = {
@@ -55,62 +57,63 @@
         }
       } catch(e) { console.error("Erro Firebase Init:", e); }
 
+      // Bridge de Comunicação (Copiado do código de teste para melhor estabilidade)
+      const ExternalBridge = {
+        request: async (action, payload = {}) => {
+          const response = await fetch(API_URL, {
+            method: 'POST',
+            redirect: "follow",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ action, ...payload })
+          });
+          const json = await response.json();
+          // if (json.error) throw new Error(json.error); // Opcional: tratar erro aqui
+          return json;
+        }
+      };
+
       if (typeof google === 'undefined') {
-        const createRunner = (onSuccess, onFailure) => ({
-          withSuccessHandler: (fn) => createRunner(fn, onFailure),
-          withFailureHandler: (fn) => createRunner(onSuccess, fn),
-          getBolsistaInfo: (id, token) => doRequest('getBolsistaInfo', {id, token}, onSuccess, onFailure),
-          registrarPonto: (payload) => doRequest('registrarPonto', payload, onSuccess, onFailure),
-          salvarToken: (payload) => doRequest('salvarToken', payload, onSuccess, onFailure),
-          salvarConfiguracao: (payload) => doRequest('salvarConfiguracao', payload, onSuccess, onFailure),
-          testarPush: (payload) => doRequest('testarPush', payload, onSuccess, onFailure)
-        });
-
-        const doRequest = (action, data, success, failure) => {
-           fetch(API_URL, {
-             method: 'POST',
-             body: JSON.stringify({ action, ...data })
-           })
-           .then(r => r.json())
-           .then(data => { if(success) success(data); })
-           .catch(err => { if(failure) failure(err); });
-        };
-
         window.google = {
           script: {
-            run: createRunner(null, null),
+            run: {
+              withSuccessHandler: (cb) => ({
+                withFailureHandler: (errCb) => ({
+                  getBolsistaInfo: (id, token) => ExternalBridge.request('getBolsistaInfo', { id, token }).then(cb).catch(errCb),
+                  registrarPonto: (p) => ExternalBridge.request('registrarPonto', p).then(cb).catch(errCb),
+                  salvarToken: (p) => ExternalBridge.request('salvarToken', p).then(cb).catch(errCb),
+                  salvarConfiguracao: (p) => ExternalBridge.request('salvarConfiguracao', p).then(cb).catch(errCb),
+                  testarPush: (p) => ExternalBridge.request('testarPush', p).then(cb).catch(errCb)
+                })
+              })
+            },
             url: { getLocation: (cb) => { cb({ parameter: {} }); } }
           }
         };
       }
       
-      // Registro do Service Worker
       if ('serviceWorker' in navigator) {
-         navigator.serviceWorker.register('./sw.js')
-         .then(reg => console.log('SW registrado', reg.scope))
-         .catch(err => console.error('Erro SW', err));
+         navigator.serviceWorker.register('./sw.js').catch(err => console.error('Erro SW', err));
       }
     </script>
 
     <!-- REACT APP LOGIC -->
     <script type="text/babel">
       const { useState, useEffect, useRef } = React;
+      
       const CACHE_KEY_AUTH = 'ponto_auth_data_v2';
       const CACHE_KEY_NOTIF = 'pontoWebConfig'; 
-      
-      // ==================================================================================
-      // ✅ CHAVE VAPID CONFIGURADA
-      // ==================================================================================
+      // Nova chave de cache para dados do usuário (Lógica do Teste)
+      const CACHE_KEY_DATA = 'pontoweb_user_data_cache';
+
       const VAPID_KEY = 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0';
 
-      // Ícones
       const Icon = {
         Map: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
         Camera: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
         Check: () => <svg className="w-16 h-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
         Lock: () => <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>,
         Link: () => <svg className="w-12 h-12 text-blue-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>,
-        Exit: () => <svg className="w-3 h-3 cursor-pointer hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" onClick={() => { if(confirm('Sair da conta?')) { localStorage.removeItem('ponto_auth_data_v2'); location.reload(); } }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
+        Exit: () => <svg className="w-3 h-3 cursor-pointer hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" onClick={() => { if(confirm('Sair da conta?')) { localStorage.clear(); location.reload(); } }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
         Bell: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
       };
 
@@ -144,7 +147,7 @@
            if(savedConfig) setNotifConfig(JSON.parse(savedConfig));
         }, []);
 
-        // Monitor Local (Etapa 3)
+        // Monitor Local (Alarme)
         useEffect(() => {
           const checkNotifications = () => {
              if (!notifConfig.entrada && !notifConfig.saida) return;
@@ -177,7 +180,7 @@
            }
         };
 
-        // Autenticação
+        // Autenticação com Cache
         useEffect(() => {
           const u = new URLSearchParams(window.location.search);
           const urlId = u.get('id');
@@ -191,7 +194,7 @@
         const saveAndLogin = (id, token) => {
            localStorage.setItem(CACHE_KEY_AUTH, JSON.stringify({ id, token }));
            setParams({ id, token });
-           setStatus('loading');
+           setStatus('loading'); // Mostra loading inicialmente
            loadBolsista(id, token);
            initGPS();
         };
@@ -214,17 +217,41 @@
            } catch (err) { alert("Erro ao processar o link."); }
         };
 
+        // === NOVA LÓGICA DE CARREGAMENTO (CACHE FIRST) ===
         const loadBolsista = (id, token) => {
-           google.script.run.withSuccessHandler(res => {
-             if(res.error) { alert(res.error); localStorage.removeItem(CACHE_KEY_AUTH); setStatus('waiting_link'); }
-             else {
-               setBolsistaName(res.nome || '');
-               setEntryTime(res.entryTime || null);
-               setExitTime(res.exitTime || null);
-               setLastAction(res.lastAction || null);
-               setStatus('ready');
-             }
-           }).withFailureHandler(err => { alert("Erro de conexão."); setStatus('waiting_link'); }).getBolsistaInfo(id, token);
+           // 1. Carrega do Cache imediatamente (se existir)
+           const cachedData = localStorage.getItem(CACHE_KEY_DATA);
+           if (cachedData) {
+              const data = JSON.parse(cachedData);
+              applyUserData(data);
+              setStatus('ready');
+           }
+
+           // 2. Busca da Rede em segundo plano
+           if (navigator.onLine) {
+             google.script.run.withSuccessHandler(res => {
+               if(res.error) {
+                 if(!cachedData) { alert(res.error); localStorage.removeItem(CACHE_KEY_AUTH); setStatus('waiting_link'); }
+               } else {
+                 // Salva no cache novo
+                 localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(res));
+                 applyUserData(res);
+                 setStatus('ready');
+               }
+             }).withFailureHandler(err => {
+               if(!cachedData) { alert("Erro de conexão."); setStatus('waiting_link'); }
+             }).getBolsistaInfo(id, token);
+           } else if (!cachedData) {
+             setStatus('error-offline'); // Novo estado se não tiver nada
+           }
+        };
+
+        // Helper para aplicar dados
+        const applyUserData = (data) => {
+           setBolsistaName(data.nome || '');
+           setEntryTime(data.entryTime || null);
+           setExitTime(data.exitTime || null);
+           setLastAction(data.lastAction || null);
         };
 
         const initGPS = () => { if (!navigator.geolocation) return; navigator.geolocation.getCurrentPosition((pos) => setLocation(pos.coords), () => console.warn("GPS Pendente"), { enableHighAccuracy: true }); };
@@ -237,33 +264,27 @@
              const permission = await Notification.requestPermission();
              if (permission !== 'granted') {
                 setPushStatus('denied');
-                alert("Permissão negada. Ative nas configurações do navegador.");
+                alert("Permissão negada.");
                 return;
              }
-
-             // Recupera o SW registrado
              const registration = await navigator.serviceWorker.getRegistration('./sw.js');
              if (!registration) throw new Error("Service Worker não encontrado.");
 
-             // Solicita o token com a VAPID_KEY correta
-             const token = await firebase.messaging().getToken({ 
-               vapidKey: VAPID_KEY,
-               serviceWorkerRegistration: registration
-             });
+             const token = await firebase.messaging().getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
              
              if (token) {
                setFcmToken(token);
                google.script.run.withSuccessHandler(() => {
                   setPushStatus('granted');
-                  alert("Notificações Ativadas com Sucesso!");
+                  alert("Notificações Ativadas!");
                }).salvarToken({ id: params.id, token: params.token, fcmToken: token });
              } else {
-               alert("Não foi possível gerar o token.");
+               alert("Erro ao gerar token.");
                setPushStatus('idle');
              }
           } catch (err) {
              console.error(err);
-             alert("Erro ao ativar: " + err.message);
+             alert("Erro: " + err.message);
              setPushStatus('idle');
           }
         };
@@ -278,12 +299,42 @@
 
         const resetState = () => { setResult(null); setPunchType(null); setStatus('loading'); if (params) loadBolsista(params.id, params.token); initGPS(); };
         const startCamera = async (type) => { setPunchType(type); setStatus('punching'); try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }); if (videoRef.current) videoRef.current.srcObject = stream; } catch(e) { alert('Câmera necessária.'); setStatus('ready'); } };
+        
         const confirm = () => {
+          // Lógica Offline adicionada
+          if (!navigator.onLine) {
+             alert("Você está offline. Conecte-se à internet para registrar o ponto.");
+             setStatus('ready');
+             return;
+          }
+
           const canvas = document.createElement('canvas'); canvas.width = 320; canvas.height = 240; const ctx = canvas.getContext('2d');
           if (videoRef.current) { ctx.translate(320, 0); ctx.scale(-1, 1); ctx.drawImage(videoRef.current, 0, 0, 320, 240); const s = videoRef.current.srcObject; if (s) s.getTracks().forEach(t => t.stop()); }
           const foto = canvas.toDataURL('image/jpeg', 0.7); setStatus('sending');
+          
           const payload = { pessoaId: params.id, token: params.token, tipo: punchType, lat: location ? location.latitude : '', lng: location ? location.longitude : '', prec: location ? location.accuracy : '', fotoBase64: foto };
-          google.script.run.withSuccessHandler((res) => { if(res.ok) { setResult(res); setStatus('success'); } else { alert("Erro: " + res.msg); setStatus('ready'); } }).withFailureHandler((err) => { alert("Erro servidor"); setStatus('ready'); }).registrarPonto(payload);
+          
+          google.script.run.withSuccessHandler((res) => { 
+             if(res.ok) { 
+               setResult(res); 
+               setStatus('success');
+               
+               // Atualiza Cache Local (Optimistic UI)
+               const currentCache = JSON.parse(localStorage.getItem(CACHE_KEY_DATA) || '{}');
+               currentCache.lastAction = punchType;
+               if(punchType === 'Entrada') currentCache.entryTime = res.timestamp.split(' ')[1].substring(0,5);
+               if(punchType === 'Saida') currentCache.exitTime = res.timestamp.split(' ')[1].substring(0,5);
+               localStorage.setItem(CACHE_KEY_DATA, JSON.stringify(currentCache));
+               applyUserData(currentCache);
+
+             } else { 
+               alert("Erro: " + res.msg); 
+               setStatus('ready'); 
+             } 
+          }).withFailureHandler((err) => { 
+             alert("Erro servidor: " + err); 
+             setStatus('ready'); 
+          }).registrarPonto(payload);
         };
 
         if (status === 'waiting_link') return (
@@ -300,6 +351,7 @@
         );
 
         if (status === 'loading') return <div className="h-screen flex items-center justify-center bg-white"><div className="spinner mb-4 mx-auto"></div></div>;
+        if (status === 'error-offline') return <div className="h-screen flex flex-col items-center justify-center bg-white text-center p-6"><h2 className="text-xl font-bold text-red-600">Sem Conexão</h2><p className="text-gray-500">Conecte-se para carregar seus dados.</p><button onClick={()=>window.location.reload()} className="mt-4 px-6 py-2 bg-gray-200 rounded-lg">Tentar Novamente</button></div>;
 
         if (status === 'success') return (
           <div className="h-screen flex flex-col items-center justify-center bg-white p-6 text-center fade-in">
@@ -426,7 +478,7 @@
                  <div className="flex items-center gap-1"><Icon.Lock /> <span className="font-semibold">Privacidade e Segurança</span></div>
                  <span className="leading-tight max-w-[280px]">Este aplicativo atende e respeita as normas da Política de Privacidade (LGPD).</span>
                </div>
-               <div className="text-[9px] text-gray-300 mt-2 font-mono flex justify-center gap-2 items-center">Versão 4.0 <Icon.Exit /></div>
+               <div className="text-[9px] text-gray-300 mt-2 font-mono flex justify-center gap-2 items-center">Versão 4.2 <Icon.Exit /></div>
             </div>
           </div>
         );
@@ -437,5 +489,3 @@
     </script>
   </body>
 </html>
-
-
