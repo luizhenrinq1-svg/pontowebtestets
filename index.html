@@ -34,12 +34,10 @@
     <!-- APP REACT -->
     <div id="root"></div>
 
-    <!-- SHIM PARA GITHUB PAGES (Conecta com seu Script Google) -->
+    <!-- SHIM PARA GITHUB PAGES -->
     <script>
-      // ⚠️ CONFIGURAÇÃO FIXA DA API
       const API_URL = "https://script.google.com/macros/s/AKfycbyhvzFHFiUj0sSNOzD8wQft9y_yU8OuqN3SSUCfuiwYyzD8xx5JeEMSd9jjOMq-OpXTig/exec";
 
-      // ⚠️ CONFIGURAÇÃO FIREBASE
       const firebaseConfig = {
         apiKey: "AIzaSyCn89LRlH1lksZ811--jb2jlB2iZS5NH1s",
         authDomain: "pontoweb-dc8dd.firebaseapp.com",
@@ -49,7 +47,6 @@
         appId: "1:465750633035:web:282efd14b807e2a3823bce"
       };
 
-      // Inicializa Firebase se disponível
       let messaging = null;
       try {
         if (typeof firebase !== 'undefined') {
@@ -58,7 +55,6 @@
         }
       } catch(e) { console.error("Erro Firebase Init:", e); }
 
-      // Shim do Google Script Run
       if (typeof google === 'undefined') {
         const createRunner = (onSuccess, onFailure) => ({
           withSuccessHandler: (fn) => createRunner(fn, onFailure),
@@ -88,11 +84,11 @@
         };
       }
       
-      // Service Worker para PWA (Registra o sw.js)
+      // Registro do Service Worker
       if ('serviceWorker' in navigator) {
          navigator.serviceWorker.register('./sw.js')
-         .then(reg => console.log('SW registrado com escopo:', reg.scope))
-         .catch(err => console.error('Falha ao registrar SW:', err));
+         .then(reg => console.log('SW registrado', reg.scope))
+         .catch(err => console.error('Erro SW', err));
       }
     </script>
 
@@ -102,8 +98,10 @@
       const CACHE_KEY_AUTH = 'ponto_auth_data_v2';
       const CACHE_KEY_NOTIF = 'pontoWebConfig'; 
       
-      // Chave Pública VAPID
-      const VAPID_KEY = "BBoKkzbg_SEU_CODIGO_PUBLICO_AQUI_SE_TIVER_GERADO_NO_FIREBASE"; 
+      // ==================================================================================
+      // ✅ CHAVE VAPID CONFIGURADA
+      // ==================================================================================
+      const VAPID_KEY = 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0';
 
       // Ícones
       const Icon = {
@@ -231,7 +229,6 @@
 
         const initGPS = () => { if (!navigator.geolocation) return; navigator.geolocation.getCurrentPosition((pos) => setLocation(pos.coords), () => console.warn("GPS Pendente"), { enableHighAccuracy: true }); };
 
-        // === ETAPA 1 CORRIGIDA: USANDO SW.JS EXISTENTE ===
         const requestPushPermission = async () => {
           if (!messaging) { alert("Firebase não suportado."); return; }
           setPushStatus('loading');
@@ -244,16 +241,14 @@
                 return;
              }
 
-             // CORREÇÃO AQUI: Obtém o SW existente e passa para o getToken
+             // Recupera o SW registrado
              const registration = await navigator.serviceWorker.getRegistration('./sw.js');
-             
-             if (!registration) {
-                throw new Error("Service Worker sw.js não encontrado.");
-             }
+             if (!registration) throw new Error("Service Worker não encontrado.");
 
+             // Solicita o token com a VAPID_KEY correta
              const token = await firebase.messaging().getToken({ 
                vapidKey: VAPID_KEY,
-               serviceWorkerRegistration: registration // <--- O PULO DO GATO
+               serviceWorkerRegistration: registration
              });
              
              if (token) {
@@ -352,93 +347,4 @@
             </div>
 
             {status === 'sending' && (
-              <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center backdrop-blur-sm fade-in">
-                 <div className="spinner mb-4"></div>
-                 <p className="text-green-700 font-bold animate-pulse">A enviar dados...</p>
-              </div>
-            )}
-
-            <div className="flex-1 p-6 flex flex-col justify-center gap-4">
-              <div className="text-center mb-2">
-                <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Bolsista Identificado</p>
-                <h3 className="text-xl font-bold text-gray-800">{bolsistaName}</h3>
-                <div className="flex gap-2 justify-center mt-2 flex-wrap">
-                     {entryTime && <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold border border-blue-100">Entrada: {entryTime}</div>}
-                     {exitTime && <div className="bg-orange-50 text-orange-700 px-3 py-1 rounded-full text-sm font-bold border border-orange-100">Saída: {exitTime}</div>}
-                </div>
-              </div>
-              <button disabled={isEntryBlocked} onClick={() => startCamera('Entrada')} className="bg-green-50 text-green-700 border-2 border-green-200 p-5 rounded-2xl font-bold text-xl hover:bg-green-100 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:scale-100">
-                {isEntryBlocked ? 'ENTRADA (Registrada)' : 'ENTRADA'}
-              </button>
-              <button disabled={isExitBlocked} onClick={() => startCamera('Saida')} className="bg-red-50 text-red-700 border-2 border-red-200 p-5 rounded-2xl font-bold text-xl hover:bg-red-100 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:scale-100">
-                 {isExitBlocked ? 'SAÍDA (Registrada)' : 'SAÍDA'}
-              </button>
-              <div className="grid grid-cols-2 gap-4 mt-2">
-                <button onClick={() => startCamera('Intervalo-Inicio')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border-2 border-gray-100 hover:bg-gray-100 active:scale-95">Início Interv.</button>
-                <button onClick={() => startCamera('Intervalo-Fim')} className="bg-gray-50 text-gray-700 p-4 rounded-xl font-bold border-2 border-gray-100 hover:bg-gray-100 active:scale-95">Fim Interv.</button>
-              </div>
-            </div>
-
-            {showSettings && (
-              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 fade-in">
-                <div className="bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl p-6 shadow-2xl transform transition-transform">
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-lg text-gray-800">Configurar Alertas</h3>
-                    <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600">✕</button>
-                  </div>
-                  
-                  <div className="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-bold text-blue-800">Notificações Push</p>
-                        <p className="text-xs text-blue-600">Receba alertas mesmo com app fechado</p>
-                      </div>
-                      <button onClick={requestPushPermission} disabled={pushStatus === 'granted'} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${pushStatus === 'granted' ? 'bg-green-200 text-green-800' : 'bg-blue-600 text-white shadow-lg'}`}>
-                         {pushStatus === 'granted' ? 'Ativo ✓' : pushStatus === 'loading' ? '...' : 'Ativar'}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Horário Previsto de Entrada</label>
-                      <input type="time" value={notifConfig.entrada} onChange={e => setNotifConfig({...notifConfig, entrada: e.target.value})} className="w-full p-3 border rounded-xl bg-gray-50 font-bold text-gray-800 text-center text-lg"/>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Horário Previsto de Saída</label>
-                      <input type="time" value={notifConfig.saida} onChange={e => setNotifConfig({...notifConfig, saida: e.target.value})} className="w-full p-3 border rounded-xl bg-gray-50 font-bold text-gray-800 text-center text-lg"/>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Lembrar com antecedência (min)</label>
-                      <select value={notifConfig.antecedencia} onChange={e => setNotifConfig({...notifConfig, antecedencia: e.target.value})} className="w-full p-3 border rounded-xl bg-gray-50">
-                        <option value="5">5 minutos antes</option>
-                        <option value="10">10 minutos antes</option>
-                        <option value="15">15 minutos antes</option>
-                        <option value="30">30 minutos antes</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <button onClick={handleSaveConfig} className="w-full mt-6 bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg active:scale-95 transition-transform">
-                    Salvar Configuração
-                  </button>
-                </div>
-              </div>
-            )}
-            
-            <div className="p-6 text-center border-t border-gray-100 mt-2">
-               <div className="text-[10px] text-gray-500 mb-1 flex flex-col items-center justify-center gap-1 opacity-80">
-                 <div className="flex items-center gap-1"><Icon.Lock /> <span className="font-semibold">Privacidade e Segurança</span></div>
-                 <span className="leading-tight max-w-[280px]">Este aplicativo atende e respeita as normas da Política de Privacidade (LGPD).</span>
-               </div>
-               <div className="text-[9px] text-gray-300 mt-2 font-mono flex justify-center gap-2 items-center">Versão 4.0 <Icon.Exit /></div>
-            </div>
-          </div>
-        );
-      }
-
-      const root = ReactDOM.createRoot(document.getElementById('root'));
-      root.render(<TimeClock />);
-    </script>
-  </body>
-</html>
+              <div className="absolute inset-0 bg-whi
