@@ -1,6 +1,6 @@
 /**
  * Service Worker para PontoWeb - PWA e Firebase
- * Versão: Data Message (Silenciosa para o Browser, Ativa para o SW)
+ * Versão: Correção de Link (Abre o App correto ao clicar)
  */
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
@@ -19,48 +19,53 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-// === LÓGICA DE BACKGROUND (Quando app está fechado) ===
+// === LÓGICA DE BACKGROUND ===
 messaging.onBackgroundMessage((payload) => {
   console.log('[sw.js] Mensagem recebida:', payload);
   
-  // Tenta ler de 'data' (novo padrão) ou 'notification' (fallback)
-  const title = payload.data?.title || payload.notification?.title || "Nova Mensagem";
-  const body = payload.data?.body || payload.notification?.body || "";
+  const title = payload.data?.title || "Nova Mensagem";
+  const body = payload.data?.body || "";
 
   const notificationOptions = {
     body: body,
-    icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', // Ícone do App
-    badge: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png', // Ícone pequeno na barra
-    vibrate: [500, 200, 500, 200, 500], // Vibração Forte
-    requireInteraction: true, // Fica na tela até o usuário clicar
-    tag: 'ponto-notification', // Evita empilhamento excessivo
+    icon: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png',
+    badge: 'https://cdn-icons-png.flaticon.com/512/2983/2983818.png',
+    vibrate: [500, 200, 500, 200, 500],
+    requireInteraction: true,
+    tag: 'ponto-notification',
     data: {
-      url: '/' // Para onde ir ao clicar
+      url: 'https://luizhenrinq1-svg.github.io/pontowebtestets/' // Link absoluto do App
     }
   };
 
   return self.registration.showNotification(title, notificationOptions);
 });
 
-// === LÓGICA DE CLIQUE NA NOTIFICAÇÃO ===
+// === LÓGICA DE CLIQUE NA NOTIFICAÇÃO (CORRIGIDA) ===
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
-  // Foca na aba aberta ou abre uma nova
+  
+  // Define a URL correta (usa o que veio na notificação ou o link fixo)
+  const urlToOpen = event.notification.data?.url || 'https://luizhenrinq1-svg.github.io/pontowebtestets/';
+
   event.waitUntil(
-    clients.matchAll({type: 'window'}).then( windowClients => {
+    clients.matchAll({type: 'window', includeUncontrolled: true}).then( windowClients => {
+      // 1. Tenta encontrar uma aba que já esteja no App
       for (var i = 0; i < windowClients.length; i++) {
         var client = windowClients[i];
-        if (client.url === '/' && 'focus' in client) {
+        // Verifica se a URL da aba corresponde ao App (procura por parte do link)
+        if (client.url.includes("pontowebtestets") && 'focus' in client) {
           return client.focus();
         }
       }
+      // 2. Se não achou, abre nova janela no link correto
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow(urlToOpen);
       }
     })
   );
 });
 
-// === LÓGICA DE PWA ===
+// === PWA ===
 self.addEventListener('install', (event) => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
