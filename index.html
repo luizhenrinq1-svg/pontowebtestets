@@ -18,7 +18,6 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
 
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -104,19 +103,25 @@
     <!-- REACT APP LOGIC -->
     <script type="text/babel">
       const { useState, useEffect, useRef } = React;
-      const { Smartphone, Clock, ShieldCheck, Download, LogIn, Bell } = lucide;
       
       const CACHE_KEY_AUTH = 'ponto_auth_data_v2';
       const CACHE_KEY_NOTIF = 'pontoWebConfig'; 
       const CACHE_KEY_DATA = 'pontoweb_user_data_cache';
       const VAPID_KEY = 'BBoKkzbg5v-PjBLtxOv7oQz-o9SEcnpdYu2cAawC_2WHozRfOyYnESz_lss2yA4BGnuO76II-NbwoKUqfaEN-S0';
 
-      // --- ÍCONES SVG PERSONALIZADOS (Mantidos para o App) ---
+      // --- ÍCONES SVG PERSONALIZADOS ---
       const Icon = {
         Map: () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
         Camera: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
         Check: () => <svg className="w-16 h-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
-        Bell: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        Bell: (props) => <svg className={`w-6 h-6 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>,
+        Download: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>,
+        Lock: () => <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>,
+        Exit: () => <svg className="w-3 h-3 cursor-pointer hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" onClick={() => { if(confirm('Sair da conta?')) { localStorage.clear(); location.reload(); } }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
+        Link: () => <svg className="w-12 h-12 text-blue-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>,
+        Clock: (props) => <svg className={`w-6 h-6 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+        ShieldCheck: (props) => <svg className={`w-6 h-6 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
+        LogIn: (props) => <svg className={`w-4 h-4 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
       };
 
       // --- COMPONENTE DO APP DE PONTO ---
@@ -366,7 +371,7 @@
             
             <div className="bg-green-600 p-6 text-white text-center rounded-b-3xl shadow-lg z-10 transition-all relative">
               <button onClick={() => setShowSettings(true)} className="absolute top-4 right-4 p-2 bg-green-700/50 rounded-full hover:bg-green-500 transition-colors">
-                 <Icon.Bell />
+                 <Icon.Bell className="text-green-100" />
               </button>
               <h1 className="text-2xl font-bold">PontoWeb Unespar</h1>
               <div className="flex flex-col items-center mt-2 mb-1">
@@ -461,17 +466,17 @@
             <p className="text-gray-600 mb-8 max-w-xs">A maneira mais rápida e segura de registrar sua frequência, agora com alertas e modo offline.</p>
 
             <div className="bg-white p-6 rounded-2xl shadow-lg w-full max-w-sm mb-6 space-y-4 text-left">
-              <div className="flex items-center gap-3 text-gray-700"><Clock className="text-green-600" /> <span>Registro rápido com foto</span></div>
-              <div className="flex items-center gap-3 text-gray-700"><ShieldCheck className="text-green-600" /> <span>Segurança e Geolocalização</span></div>
-              <div className="flex items-center gap-3 text-gray-700"><Bell className="text-green-600" /> <span>Lembretes de horário</span></div>
+              <div className="flex items-center gap-3 text-gray-700"><Icon.Clock className="text-green-600" /> <span>Registro rápido com foto</span></div>
+              <div className="flex items-center gap-3 text-gray-700"><Icon.ShieldCheck className="text-green-600" /> <span>Segurança e Geolocalização</span></div>
+              <div className="flex items-center gap-3 text-gray-700"><Icon.Bell className="text-green-600" /> <span>Lembretes de horário</span></div>
             </div>
 
             <button onClick={handleInstall} className="w-full max-w-sm bg-green-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 hover:bg-green-700 transition-all active:scale-95 mb-4">
-              <Download /> Instalar Aplicativo
+              <Icon.Download /> Instalar Aplicativo
             </button>
 
             <button onClick={onOpenWeb} className="text-green-700 font-semibold flex items-center gap-2 text-sm hover:underline">
-              <LogIn size={16} /> Acessar Versão Web
+              <Icon.LogIn className="w-4 h-4" /> Acessar Versão Web
             </button>
           </div>
         );
