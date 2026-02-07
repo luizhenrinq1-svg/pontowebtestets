@@ -1,11 +1,10 @@
 /**
  * Service Worker para PontoWeb - PWA e Firebase
- * Versão: Correção de Link (Abre o App correto ao clicar)
+ * Versão: PWA Installable (Com Fetch Handler obrigatório)
  */
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
-// Configuração do Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyCn89LRlH1lksZ811--jb2jlB2iZS5NH1s",
   authDomain: "pontoweb-dc8dd.firebaseapp.com",
@@ -15,13 +14,13 @@ const firebaseConfig = {
   appId: "1:465750633035:web:282efd14b807e2a3823bce"
 };
 
-// Inicializa Firebase no Service Worker
+// Inicializa Firebase
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-// === LÓGICA DE BACKGROUND ===
+// === 1. LÓGICA DE BACKGROUND (Notificações) ===
 messaging.onBackgroundMessage((payload) => {
-  console.log('[sw.js] Mensagem recebida:', payload);
+  console.log('[sw.js] Background:', payload);
   
   const title = payload.data?.title || "Nova Mensagem";
   const body = payload.data?.body || "";
@@ -34,31 +33,26 @@ messaging.onBackgroundMessage((payload) => {
     requireInteraction: true,
     tag: 'ponto-notification',
     data: {
-      url: 'https://luizhenrinq1-svg.github.io/pontowebtestets/' // Link absoluto do App
+      url: 'https://luizhenrinq1-svg.github.io/pontowebtestets/' // Link absoluto para evitar erros
     }
   };
 
   return self.registration.showNotification(title, notificationOptions);
 });
 
-// === LÓGICA DE CLIQUE NA NOTIFICAÇÃO (CORRIGIDA) ===
+// === 2. CLIQUE NA NOTIFICAÇÃO ===
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
-  
-  // Define a URL correta (usa o que veio na notificação ou o link fixo)
-  const urlToOpen = event.notification.data?.url || 'https://luizhenrinq1-svg.github.io/pontowebtestets/';
+  const urlToOpen = event.notification.data?.url || self.registration.scope;
 
   event.waitUntil(
     clients.matchAll({type: 'window', includeUncontrolled: true}).then( windowClients => {
-      // 1. Tenta encontrar uma aba que já esteja no App
       for (var i = 0; i < windowClients.length; i++) {
         var client = windowClients[i];
-        // Verifica se a URL da aba corresponde ao App (procura por parte do link)
         if (client.url.includes("pontowebtestets") && 'focus' in client) {
           return client.focus();
         }
       }
-      // 2. Se não achou, abre nova janela no link correto
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }
@@ -66,6 +60,21 @@ self.addEventListener('notificationclick', function(event) {
   );
 });
 
-// === PWA ===
-self.addEventListener('install', (event) => self.skipWaiting());
-self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+// === 3. CRITÉRIOS OBRIGATÓRIOS PARA INSTALAÇÃO (PWA) ===
+
+// OBRIGATÓRIO: O Chrome só permite instalar se houver um manipulador 'fetch'
+self.addEventListener('fetch', (event) => {
+  // Estratégia "Network Only" (passa direto para a internet)
+  // Isso satisfaz o critério de PWA sem precisar cachear arquivos complexos agora
+  event.respondWith(fetch(event.request));
+});
+
+self.addEventListener('install', (event) => {
+  console.log('SW Instalado');
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  console.log('SW Ativado');
+  event.waitUntil(self.clients.claim());
+});
