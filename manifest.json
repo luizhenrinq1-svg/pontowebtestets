@@ -2,9 +2,10 @@
   "name": "PontoWeb Unespar",
   "short_name": "PontoWeb",
   "start_url": "./index.html",
-  "display": "browser",
+  "display": "standalone",
   "background_color": "#f0fdf4",
   "theme_color": "#166534",
+  "description": "Registo de ponto eletrónico e alertas.",
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/2983/2983818.png",
