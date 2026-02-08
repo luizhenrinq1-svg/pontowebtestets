@@ -19,26 +19,35 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- Firebase (App Compat) -->
+    <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 
     <style>
-      body { background-color: #f0fdf4; color: #166534; font-family: 'Segoe UI', sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; }
-      .spinner { border: 4px solid #dcfce7; width: 40px; height: 40px; border-radius: 50%; border-left-color: #16a34a; animation: spin 1s linear infinite; }
-      @keyframes spin { 100% { transform: rotate(360deg); } }
-      .fade-in { animation: fadeIn 0.5s ease-in-out; }
+      /* FUNDO BRANCO E TIPOGRAFIA */
+      body { background-color: #ffffff; color: #1f2937; font-family: 'Segoe UI', sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; }
+      
+      /* ANIMAÇÕES DE FLUIDEZ */
+      .fade-in { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
       @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-      .bounce { animation: bounce 2s infinite; }
-      @keyframes bounce { 0%, 20%, 50%, 80%, 100% {transform: translateY(0);} 40% {transform: translateY(-10px);} 60% {transform: translateY(-5px);} }
+      
+      .slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+      @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+      
+      .scale-click:active { transform: scale(0.96); transition: transform 0.1s; }
+      
+      .spinner { border: 3px solid #e5e7eb; width: 24px; height: 24px; border-radius: 50%; border-left-color: #16a34a; animation: spin 0.8s linear infinite; }
+      @keyframes spin { 100% { transform: rotate(360deg); } }
+      
+      /* Animação de pulso suave para o GPS */
+      .pulse-dot { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
     </style>
     
-    <!-- CAPTURA DE EVENTO PWA -->
     <script>
       window.deferredInstallPrompt = null;
       window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault(); 
         window.deferredInstallPrompt = e;
-        console.log("PWA: Evento capturado.");
       });
     </script>
   </head>
@@ -46,7 +55,7 @@
 
     <div id="root"></div>
 
-    <!-- SHIM ROBUSTO -->
+    <!-- SHIM -->
     <script>
       const API_URL = "https://script.google.com/macros/s/AKfycbyhvzFHFiUj0sSNOzD8wQft9y_yU8OuqN3SSUCfuiwYyzD8xx5JeEMSd9jjOMq-OpXTig/exec";
 
@@ -94,15 +103,15 @@
 
     <!-- REACT APP LOGIC -->
     <script type="text/babel">
-      const { useState, useEffect, useRef } = React;
+      const { useState, useEffect, useRef, useMemo } = React;
       
       const CACHE_KEY_AUTH = 'ponto_auth_data_v2';
-      const CACHE_KEY_NOTIF = 'pontoWebConfig'; 
+      const CACHE_KEY_NOTIF = 'pontoWebConfig';
       const CACHE_KEY_DATA = 'pontoweb_user_data_cache';
 
-      // --- ÍCONES SVG PERSONALIZADOS ---
+      // --- ÍCONES OTIMIZADOS ---
       const Icon = {
-        Map: (props) => <svg className={`w-5 h-5 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
+        Map: (props) => <svg className={`w-4 h-4 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
         Camera: (props) => <svg className={`w-6 h-6 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>,
         Check: (props) => <svg className={`w-16 h-16 ${props.className || 'text-green-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
         Bell: (props) => <svg className={`w-6 h-6 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>,
@@ -113,18 +122,26 @@
         Clock: (props) => <svg className={`w-6 h-6 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
         ShieldCheck: (props) => <svg className={`w-6 h-6 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
         LogIn: (props) => <svg className={`w-4 h-4 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>,
-        Share: (props) => <svg className={`w-6 h-6 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+        Share: (props) => <svg className={`w-6 h-6 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>,
+        Settings: (props) => <svg className={`w-6 h-6 ${props.className || ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
       };
 
-      // --- APP ---
+      // --- APP COMPONENT ---
       function TimeClock({ onBack }) {
-        const [params, setParams] = useState(null);
-        const [bolsistaName, setBolsistaName] = useState('');
-        const [lastAction, setLastAction] = useState(null);
-        const [entryTime, setEntryTime] = useState(null);
-        const [exitTime, setExitTime] = useState(null);
+        // Inicialização "Lazy" para ler cache instantaneamente antes de renderizar
+        const [authData] = useState(() => JSON.parse(localStorage.getItem(CACHE_KEY_AUTH) || 'null'));
+        const [cachedData] = useState(() => JSON.parse(localStorage.getItem(CACHE_KEY_DATA) || 'null'));
+
+        const [params, setParams] = useState(authData);
+        const [bolsistaName, setBolsistaName] = useState(cachedData?.nome || '');
+        const [lastAction, setLastAction] = useState(cachedData?.lastAction || null);
+        const [entryTime, setEntryTime] = useState(cachedData?.entryTime || null);
+        const [exitTime, setExitTime] = useState(cachedData?.exitTime || null);
         const [location, setLocation] = useState(null);
-        const [status, setStatus] = useState('loading');
+        
+        // Se tiver cache, status começa 'ready', senão 'loading'
+        const [status, setStatus] = useState(cachedData ? 'ready' : 'loading');
+        
         const [punchType, setPunchType] = useState(null);
         const [result, setResult] = useState(null);
         const [inputUrl, setInputUrl] = useState('');
@@ -134,29 +151,15 @@
         const [iosHelp, setIosHelp] = useState(false);
         const videoRef = useRef(null);
         
-        // Estado local para MONITORAMENTO APENAS (Sem UI de config interna)
         const [localNotifConfig, setLocalNotifConfig] = useState({ entrada: '', saida: '', antecedencia: 10 });
 
         useEffect(() => { const t=setInterval(()=>setCurrentTime(new Date()),1000); return ()=>clearInterval(t); }, []);
         
-        // Carrega config inicial
-        useEffect(() => { const s=localStorage.getItem(CACHE_KEY_NOTIF); if(s) setLocalNotifConfig(JSON.parse(s)); }, []);
+        // Recarrega config ao ganhar foco (para sincronizar com a página externa)
+        const loadConfig = () => { const s=localStorage.getItem(CACHE_KEY_NOTIF); if(s) setLocalNotifConfig(JSON.parse(s)); };
+        useEffect(() => { loadConfig(); window.addEventListener('focus', loadConfig); return ()=>window.removeEventListener('focus',loadConfig); }, []);
 
-        // Recarrega config quando a aba ganha foco (Usuário voltou do site de notificação)
-        useEffect(() => {
-           const refreshConfig = () => {
-              const s=localStorage.getItem(CACHE_KEY_NOTIF); 
-              if(s) setLocalNotifConfig(JSON.parse(s));
-           };
-           window.addEventListener('focus', refreshConfig);
-           window.addEventListener('visibilitychange', refreshConfig);
-           return () => {
-              window.removeEventListener('focus', refreshConfig);
-              window.removeEventListener('visibilitychange', refreshConfig);
-           };
-        }, []);
-
-        // Monitor Local (Vibração enquanto App aberto)
+        // Monitor Local (Vibração)
         useEffect(() => {
           const check = () => {
              if(!localNotifConfig.entrada && !localNotifConfig.saida) return;
@@ -164,7 +167,6 @@
              const tol=parseInt(localNotifConfig.antecedencia)||10;
              const toMins=(t)=>{if(!t)return-1;const[h,m]=t.split(':').map(Number);return h*60+m;};
              const eM=toMins(localNotifConfig.entrada), sM=toMins(localNotifConfig.saida);
-             
              if(eM>0){ const d=eM-nowMins; if(d===tol||d===0) triggerAppAlert("⏰ Hora de Entrar!"); }
              if(sM>0){ const d=sM-nowMins; if(d===tol||d===0) triggerAppAlert("🚪 Hora de Sair!"); }
           };
@@ -174,7 +176,6 @@
         const triggerAppAlert = (title) => {
            try { if('vibrate' in navigator) navigator.vibrate([200,100,200]); } catch(e){}
            if (Notification.permission==='granted') new Notification(title,{icon:'https://cdn-icons-png.flaticon.com/512/2983/2983818.png'});
-           else alert(title);
         };
 
         useEffect(() => {
@@ -189,27 +190,38 @@
           else alert("App já instalado ou não suportado. Tente pelo menu do navegador.");
         };
 
-        // Abre Notificações no NAVEGADOR (Página Externa)
         const openNotificationsExternal = () => {
            if (params && params.id && params.token) {
               window.open(`https://luizhenrinq1-svg.github.io/notificacoes/?id=${params.id}&token=${params.token}`, '_blank');
-           } else {
-              alert("Aguarde a identificação do usuário.");
-           }
+           } else { alert("Aguarde a identificação do usuário."); }
         };
 
+        // Lógica de Login/Carregamento
         useEffect(() => {
+          // Se já carregou via Lazy State, só valida se precisa buscar online
           const u=new URLSearchParams(window.location.search);
           const uid=u.get('id'), ut=u.get('token');
-          if(uid && ut) { saveAndLogin(uid, ut); return; }
-          const s=localStorage.getItem(CACHE_KEY_AUTH);
-          if(s) { try{const d=JSON.parse(s); if(d.id&&d.token) { saveAndLogin(d.id, d.token); return; }}catch(e){} }
-          setStatus('waiting_link');
+          
+          if(uid && ut) { 
+             // Login via URL (sobrescreve cache)
+             saveAndLogin(uid, ut); 
+          } else if (params) {
+             // Já tem dados do cache, atualiza em background
+             loadBolsistaBackground(params.id, params.token);
+             initGPS();
+          } else {
+             // Sem URL e Sem Cache
+             setStatus('waiting_link');
+          }
         }, []);
 
         const saveAndLogin = (id, token) => {
-           localStorage.setItem(CACHE_KEY_AUTH, JSON.stringify({id,token}));
-           setParams({id,token}); setStatus('loading'); loadBolsista(id,token); initGPS();
+           const auth = {id,token};
+           localStorage.setItem(CACHE_KEY_AUTH, JSON.stringify(auth));
+           setParams(auth);
+           setStatus('loading'); // Mostra spinner pq é login novo
+           loadBolsistaBackground(id,token);
+           initGPS();
         };
 
         const handleManualLogin = (e) => {
@@ -224,15 +236,24 @@
            } catch(err) { alert("Link inválido."); }
         };
 
-        const loadBolsista = (id, token) => {
-           const c=localStorage.getItem(CACHE_KEY_DATA);
-           if(c) { applyUserData(JSON.parse(c)); setStatus('ready'); }
+        const loadBolsistaBackground = (id, token) => {
            if(navigator.onLine) {
              google.script.run.withSuccessHandler(res => {
-               if(res.error) { if(!c) { alert(res.error); localStorage.removeItem(CACHE_KEY_AUTH); setStatus('waiting_link'); } }
-               else { localStorage.setItem(CACHE_KEY_DATA,JSON.stringify(res)); applyUserData(res); setStatus('ready'); }
-             }).withFailureHandler(err => { if(!c) { alert("Erro conexão."); setStatus('waiting_link'); } }).getBolsistaInfo(id,token);
-           } else if(!c) setStatus('error-offline');
+               if(res.error) { 
+                 if(!cachedData) { alert(res.error); localStorage.removeItem(CACHE_KEY_AUTH); setStatus('waiting_link'); }
+               } else {
+                 localStorage.setItem(CACHE_KEY_DATA,JSON.stringify(res));
+                 applyUserData(res);
+                 setStatus('ready');
+               }
+             }).withFailureHandler(err => { 
+                if(!cachedData) { alert("Erro conexão."); setStatus('waiting_link'); }
+             }).getBolsistaInfo(id,token);
+           } else if(!cachedData) {
+             setStatus('error-offline');
+           } else {
+             // Tem cache mas tá offline, já tá mostrando dados (ready)
+           }
         };
 
         const applyUserData = (data) => {
@@ -241,8 +262,10 @@
 
         const initGPS = () => { if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>setLocation(p.coords),()=>console.warn('GPS pendente'),{enableHighAccuracy:true}); };
 
-        const resetState = () => { setResult(null); setPunchType(null); setStatus('loading'); if (params) loadBolsista(params.id, params.token); initGPS(); };
+        const resetState = () => { setResult(null); setPunchType(null); setStatus('ready'); if (params) loadBolsistaBackground(params.id, params.token); };
+        
         const startCamera = async (type) => { setPunchType(type); setStatus('punching'); try { const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}}); if(videoRef.current) videoRef.current.srcObject=s; } catch(e) { alert('Câmera necessária.'); setStatus('ready'); } };
+        
         const confirm = () => {
           if(!navigator.onLine) { alert("Offline."); setStatus('ready'); return; }
           const cvs=document.createElement('canvas'); cvs.width=320; cvs.height=240; const ctx=cvs.getContext('2d');
@@ -260,18 +283,20 @@
           }).withFailureHandler(err => { alert("Erro servidor."); setStatus('ready'); }).registrarPonto(pl);
         };
 
-        if(status==='waiting_link') return <div className="h-screen flex items-center justify-center p-4"><form onSubmit={handleManualLogin} className="w-full max-w-sm text-center"><h1 className="text-xl font-bold mb-4">Bem-vindo</h1><input value={inputUrl} onChange={e=>setInputUrl(e.target.value)} placeholder="Cole seu link..." className="w-full p-3 border rounded mb-4"/><button className="bg-blue-600 text-white w-full py-3 rounded">Entrar</button></form></div>;
-        if(status==='loading') return <div className="h-screen flex items-center justify-center"><div className="spinner"></div></div>;
-        if(status==='error-offline') return <div className="h-screen flex items-center justify-center flex-col gap-4"><h2>Sem Conexão</h2><button onClick={()=>window.location.reload()} className="bg-gray-200 px-4 py-2 rounded">Recarregar</button></div>;
-        if(status==='success') return <div className="h-screen flex flex-col items-center justify-center gap-4"><Icon.Check/><h2 className="text-2xl font-bold">Registrado!</h2><p>{result.timestamp}</p><button onClick={resetState} className="bg-green-600 text-white px-6 py-2 rounded">Voltar</button></div>;
+        if(status==='waiting_link') return <div className="h-screen flex items-center justify-center p-4 bg-white"><form onSubmit={handleManualLogin} className="w-full max-w-sm text-center fade-in"><div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600"><Icon.Link/></div><h1 className="text-xl font-bold mb-2 text-gray-800">Identificação</h1><p className="text-gray-500 mb-6 text-sm">Cole seu link pessoal para acessar.</p><input value={inputUrl} onChange={e=>setInputUrl(e.target.value)} placeholder="Cole aqui..." className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-green-500 outline-none"/><button className="bg-green-600 text-white w-full py-3 rounded-lg font-bold shadow-lg scale-click">Entrar</button></form></div>;
+        if(status==='loading') return <div className="h-screen flex items-center justify-center bg-white"><div className="spinner"></div></div>;
+        if(status==='error-offline') return <div className="h-screen flex items-center justify-center flex-col gap-4 bg-white text-center p-6"><h2 className="text-xl font-bold text-red-600">Sem Conexão</h2><p className="text-gray-500">Conecte-se para carregar seus dados.</p><button onClick={()=>window.location.reload()} className="bg-gray-100 px-6 py-2 rounded-lg font-bold">Tentar Novamente</button></div>;
+        
+        if(status==='success') return <div className="h-screen flex flex-col items-center justify-center gap-4 bg-white fade-in"><div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-green-600"><Icon.Check/></div><h2 className="text-2xl font-bold text-gray-800">Registrado!</h2><p className="text-gray-500 text-lg">{result.timestamp}</p><button onClick={resetState} className="mt-8 bg-gray-100 text-gray-700 px-8 py-3 rounded-full font-bold scale-click">Voltar</button></div>;
         
         if(status==='punching') return (
-          <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-50 slide-up">
             <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover scale-x-[-1]"></video>
             <div className="absolute bottom-10 w-full px-6 flex gap-4">
-              <button onClick={()=>{if(videoRef.current?.srcObject) videoRef.current.srcObject.getTracks().forEach(t=>t.stop()); setStatus('ready');}} className="flex-1 bg-white py-4 rounded font-bold">Cancelar</button>
-              <button onClick={confirm} className="flex-1 bg-green-600 text-white py-4 rounded font-bold">Confirmar</button>
+              <button onClick={()=>{if(videoRef.current?.srcObject) videoRef.current.srcObject.getTracks().forEach(t=>t.stop()); setStatus('ready');}} className="flex-1 bg-white py-4 rounded-xl font-bold text-gray-800 shadow-lg scale-click">Cancelar</button>
+              <button onClick={confirm} className="flex-1 bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg flex justify-center items-center gap-2 scale-click"><Icon.Camera className="w-5 h-5"/> Confirmar</button>
             </div>
+            <div className="absolute top-10 bg-black/40 backdrop-blur-md text-white font-bold text-sm px-4 py-2 rounded-full">A registar {punchType}</div>
           </div>
         );
 
@@ -279,59 +304,79 @@
         const isExitBlocked = lastAction==='Saida';
 
         return (
-          <div className="min-h-screen flex flex-col">
-            <div className="bg-green-600 p-6 text-white text-center rounded-b-3xl shadow-lg relative">
+          <div className="min-h-screen flex flex-col bg-white">
+            <div className="bg-green-600 p-6 text-white text-center rounded-b-[2rem] shadow-xl relative z-10">
               
-              {/* Botão de Configurações (ABRE O NAVEGADOR AGORA) */}
-              <button onClick={openNotificationsExternal} className="absolute top-4 right-4 p-2 bg-green-700/50 rounded-full hover:bg-green-500 transition-colors">
-                 <Icon.Bell className="text-green-100" />
+              <button onClick={openNotificationsExternal} className="absolute top-5 right-5 p-2 bg-green-700/50 rounded-full hover:bg-green-500 transition-colors">
+                 <Icon.Bell className="text-white" />
               </button>
               
-              {/* Botão de Instalar */}
               {deferredPrompt && (
-                <button onClick={handleInstallClick} className="absolute top-4 left-4 p-2 bg-green-700/50 rounded-full hover:bg-green-500 transition-colors text-white animate-bounce" title="Instalar App">
+                <button onClick={handleInstallClick} className="absolute top-5 left-5 p-2 bg-green-700/50 rounded-full hover:bg-green-500 transition-colors text-white animate-bounce">
                    <Icon.Download />
                 </button>
               )}
 
-              <h1 className="text-2xl font-bold">PontoWeb Unespar</h1>
-              <div className="mt-2"><span className="text-4xl font-mono font-bold">{currentTime.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span></div>
-              <div className="flex justify-center gap-2 mt-2 text-sm"><Icon.Map/> {location?'GPS Ativo':'Buscando...'}</div>
+              <h1 className="text-2xl font-bold tracking-tight">PontoWeb</h1>
+              <div className="mt-1 opacity-90 text-xs font-medium uppercase tracking-widest">Unespar</div>
+              
+              <div className="mt-6 mb-2">
+                <span className="text-5xl font-mono font-bold tracking-tighter drop-shadow-sm">{currentTime.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>
+                <span className="text-xl font-mono font-medium opacity-80 ml-1">{currentTime.getSeconds().toString().padStart(2,'0')}</span>
+              </div>
+              <div className="text-sm font-medium opacity-90 mb-4">{currentTime.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-green-700/40 rounded-full text-xs font-medium backdrop-blur-sm">
+                 <Icon.Map className="w-3 h-3"/> {location ? 'Localização Ativa' : 'Buscando GPS...'}
+              </div>
             </div>
-            {status==='sending'&&<div className="absolute inset-0 bg-white/80 z-50 flex items-center justify-center"><div className="spinner"></div></div>}
+
+            {status==='sending'&&<div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center backdrop-blur-sm fade-in"><div className="spinner mb-4"></div><p className="text-green-700 font-bold animate-pulse">Enviando dados...</p></div>}
             
-            <div className="flex-1 p-6 flex flex-col justify-center gap-4">
-              <div className="text-center mb-2">
-                <h3 className="text-xl font-bold">{bolsistaName}</h3>
-                <div className="flex gap-2 justify-center mt-2">
-                  {entryTime&&<div className="bg-blue-50 px-3 py-1 rounded text-blue-700 text-sm font-bold border border-blue-200">Entrada: {entryTime}</div>}
-                  {exitTime&&<div className="bg-orange-50 px-3 py-1 rounded text-orange-700 text-sm font-bold border border-orange-200">Saída: {exitTime}</div>}
+            <div className="flex-1 p-6 flex flex-col justify-center gap-4 fade-in">
+              <div className="text-center mb-4">
+                <h3 className="text-lg font-bold text-gray-800">{bolsistaName || 'Carregando...'}</h3>
+                <div className="flex gap-2 justify-center mt-3">
+                  {entryTime && <div className="bg-blue-50 px-4 py-1.5 rounded-lg text-blue-700 text-xs font-bold border border-blue-100 flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Entrada: {entryTime}</div>}
+                  {exitTime && <div className="bg-orange-50 px-4 py-1.5 rounded-lg text-orange-700 text-xs font-bold border border-orange-100 flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-orange-500"></div> Saída: {exitTime}</div>}
                 </div>
               </div>
-              <button disabled={isEntryBlocked} onClick={()=>startCamera('Entrada')} className="bg-green-50 border-2 border-green-200 p-5 rounded-2xl font-bold text-xl text-green-700 disabled:opacity-50">ENTRADA</button>
-              <button disabled={isExitBlocked} onClick={()=>startCamera('Saida')} className="bg-red-50 border-2 border-red-200 p-5 rounded-2xl font-bold text-xl text-red-700 disabled:opacity-50">SAÍDA</button>
+
               <div className="grid grid-cols-2 gap-4">
-                <button onClick={()=>startCamera('Intervalo-Inicio')} className="bg-gray-50 border p-4 rounded-xl font-bold text-gray-700">Início Interv.</button>
-                <button onClick={()=>startCamera('Intervalo-Fim')} className="bg-gray-50 border p-4 rounded-xl font-bold text-gray-700">Fim Interv.</button>
+                 <button disabled={isEntryBlocked} onClick={()=>startCamera('Entrada')} className="col-span-1 bg-green-50 border-2 border-green-100 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-green-100 transition-colors disabled:opacity-40 disabled:grayscale scale-click">
+                    <div className="w-10 h-10 bg-green-200 rounded-full flex items-center justify-center text-green-700"><Icon.LogIn className="w-5 h-5"/></div>
+                    <span className="font-bold text-green-800">ENTRADA</span>
+                 </button>
+                 <button disabled={isExitBlocked} onClick={()=>startCamera('Saida')} className="col-span-1 bg-red-50 border-2 border-red-100 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-red-100 transition-colors disabled:opacity-40 disabled:grayscale scale-click">
+                    <div className="w-10 h-10 bg-red-200 rounded-full flex items-center justify-center text-red-700"><Icon.Exit className="w-5 h-5"/></div>
+                    <span className="font-bold text-red-800">SAÍDA</span>
+                 </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                <button onClick={()=>startCamera('Intervalo-Inicio')} className="bg-white border border-gray-200 p-4 rounded-xl font-bold text-gray-600 text-sm hover:bg-gray-50 scale-click">Início Interv.</button>
+                <button onClick={()=>startCamera('Intervalo-Fim')} className="bg-white border border-gray-200 p-4 rounded-xl font-bold text-gray-600 text-sm hover:bg-gray-50 scale-click">Fim Interv.</button>
               </div>
             </div>
 
             {/* Modal Ajuda iOS */}
             {iosHelp && (
-              <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={()=>setIosHelp(false)}>
+              <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-4 fade-in" onClick={()=>setIosHelp(false)}>
                  <div className="bg-white p-6 rounded-2xl w-full max-w-sm relative" onClick={e=>e.stopPropagation()}>
-                    <button onClick={()=>setIosHelp(false)} className="absolute top-2 right-2 text-gray-400">✕</button>
-                    <h3 className="font-bold text-lg mb-4">Adicionar ao Início</h3>
-                    <p className="mb-2">1. Toque em <strong>Compartilhar</strong> <Icon.Share className="inline w-4 h-4"/></p>
-                    <p className="mb-2">2. Selecione <strong>Adicionar ao Ecrã Principal</strong></p>
-                    <p>3. Toque em <strong>Adicionar</strong></p>
+                    <button onClick={()=>setIosHelp(false)} className="absolute top-4 right-4 text-gray-400">✕</button>
+                    <h3 className="font-bold text-lg mb-4 text-gray-800">Instalar no iPhone</h3>
+                    <div className="space-y-4 text-left text-gray-600 text-sm">
+                       <p>1. Toque no botão <strong className="text-blue-600">Compartilhar</strong> <Icon.Share className="inline w-4 h-4"/> na barra inferior.</p>
+                       <p>2. Role para baixo e selecione <strong className="text-gray-800">Adicionar ao Ecrã Principal</strong>.</p>
+                       <p>3. Toque em <strong className="text-blue-600">Adicionar</strong> no canto superior.</p>
+                    </div>
                  </div>
               </div>
             )}
             
-            <div className="p-6 text-center border-t border-gray-100 mt-2">
-               <div className="text-[10px] text-gray-500 mb-1 flex flex-col items-center justify-center gap-1 opacity-80"><div className="flex items-center gap-1"><Icon.Lock /> <span className="font-semibold">Privacidade e Segurança</span></div><span className="leading-tight max-w-[280px]">Este aplicativo atende e respeita as normas da Política de Privacidade (LGPD).</span></div>
-               <div className="text-[9px] text-gray-300 mt-2 font-mono flex justify-center gap-2 items-center">Versão 4.6 <Icon.Exit /></div>
+            <div className="pb-6 text-center">
+               <div className="text-[10px] text-gray-400 flex flex-col items-center justify-center gap-1 opacity-60"><div className="flex items-center gap-1"><Icon.Lock className="w-3 h-3"/> <span>Segurança e Privacidade</span></div></div>
+               <div className="text-[9px] text-gray-300 mt-1 font-mono">v4.8</div>
             </div>
           </div>
         );
@@ -355,21 +400,31 @@
         };
 
         return (
-          <div className="min-h-screen bg-green-50 flex flex-col items-center justify-center p-6 text-center">
-            <div className="w-24 h-24 bg-green-600 rounded-3xl flex items-center justify-center shadow-xl mb-6 bounce"><img src="https://cdn-icons-png.flaticon.com/512/2983/2983818.png" className="w-16 h-16 invert"/></div>
-            <h1 className="text-3xl font-bold text-green-800 mb-2">PontoWeb</h1>
-            <p className="text-gray-600 mb-8 max-w-xs">App oficial para registro de frequência.</p>
-            <button onClick={install} className="w-full max-w-sm bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 mb-4"><Icon.Download/> Instalar App</button>
-            <button onClick={onOpenWeb} className="text-green-700 font-semibold flex items-center gap-2 hover:underline"><Icon.LogIn className="w-4 h-4"/> Acessar Web</button>
+          <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center fade-in relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-64 bg-green-600 rounded-b-[3rem] -z-10"></div>
             
+            <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center shadow-xl mb-6 bounce z-10"><img src="https://cdn-icons-png.flaticon.com/512/2983/2983818.png" className="w-14 h-14"/></div>
+            
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">PontoWeb</h1>
+            <p className="text-gray-500 mb-8 max-w-xs text-sm">Registre sua frequência com segurança e agilidade.</p>
+
+            <div className="w-full max-w-sm space-y-3 mb-8">
+               <button onClick={install} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 hover:bg-green-700 active:scale-95 transition-all">
+                 <Icon.Download className="w-6 h-6"/> Instalar App
+               </button>
+               <button onClick={onOpenWeb} className="w-full bg-gray-50 text-green-700 py-3 rounded-xl font-bold text-sm hover:bg-gray-100 active:scale-95 transition-all">
+                 Acessar sem instalar
+               </button>
+            </div>
+
             {iosHelp && (
-              <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={()=>setIosHelp(false)}>
-                 <div className="bg-white p-6 rounded-2xl w-full max-w-sm relative" onClick={e=>e.stopPropagation()}>
-                    <button onClick={()=>setIosHelp(false)} className="absolute top-2 right-2 text-gray-400">✕</button>
-                    <h3 className="font-bold text-lg mb-4">Instalar no iPhone</h3>
-                    <p className="mb-2">1. Toque em <strong>Compartilhar</strong> <Icon.Share className="inline w-4 h-4"/></p>
-                    <p className="mb-2">2. Selecione <strong>Adicionar ao Ecrã Principal</strong></p>
-                    <p>3. Toque em <strong>Adicionar</strong></p>
+              <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-4 fade-in" onClick={()=>setIosHelp(false)}>
+                 <div className="bg-white p-6 rounded-2xl w-full max-w-sm relative text-left" onClick={e=>e.stopPropagation()}>
+                    <button onClick={()=>setIosHelp(false)} className="absolute top-4 right-4 text-gray-400">✕</button>
+                    <h3 className="font-bold text-lg mb-4 text-gray-800">Instalar no iPhone</h3>
+                    <p className="text-sm text-gray-600 mb-2">1. Toque em <strong>Compartilhar</strong> <Icon.Share className="inline w-4 h-4 text-blue-500"/></p>
+                    <p className="text-sm text-gray-600 mb-2">2. Selecione <strong>Adicionar ao Ecrã Principal</strong></p>
+                    <p className="text-sm text-gray-600">3. Toque em <strong>Adicionar</strong></p>
                  </div>
               </div>
             )}
