@@ -136,7 +136,7 @@
         const [iosHelp, setIosHelp] = useState(false);
         const videoRef = useRef(null);
         
-        // Estado local para MONITORAMENTO APENAS (Sem UI de config)
+        // Estado local para MONITORAMENTO APENAS (Sem UI de config interna)
         const [localNotifConfig, setLocalNotifConfig] = useState({ entrada: '', saida: '', antecedencia: 10 });
 
         useEffect(() => { const t=setInterval(()=>setCurrentTime(new Date()),1000); return ()=>clearInterval(t); }, []);
@@ -177,8 +177,8 @@
           else alert("App já instalado ou não suportado. Tente pelo menu do navegador.");
         };
 
-        // Redireciona para a página de notificações externa
-        const openExternalSettings = () => {
+        // --- MUDANÇA CRUCIAL: Abre Notificações no NAVEGADOR ---
+        const openNotificationsExternal = () => {
            if (params && params.id && params.token) {
               window.open(`./Notificacoes.html?id=${params.id}&token=${params.token}`, '_blank');
            } else {
@@ -270,12 +270,12 @@
           <div className="min-h-screen flex flex-col">
             <div className="bg-green-600 p-6 text-white text-center rounded-b-3xl shadow-lg relative">
               
-              {/* Botão de Configurações (Abre Página Web Externa) */}
-              <button onClick={openExternalSettings} className="absolute top-4 right-4 p-2 bg-green-700/50 rounded-full hover:bg-green-500 transition-colors">
-                 <Icon.Settings className="text-white" />
+              {/* Botão de Configurações (ABRE O NAVEGADOR AGORA) */}
+              <button onClick={openNotificationsExternal} className="absolute top-4 right-4 p-2 bg-green-700/50 rounded-full hover:bg-green-500 transition-colors">
+                 <Icon.Bell className="text-green-100" />
               </button>
               
-              {/* Botão de Instalar (Só aparece se o navegador permitir) */}
+              {/* Botão de Instalar */}
               {deferredPrompt && (
                 <button onClick={handleInstallClick} className="absolute top-4 left-4 p-2 bg-green-700/50 rounded-full hover:bg-green-500 transition-colors text-white animate-bounce" title="Instalar App">
                    <Icon.Download />
@@ -319,7 +319,7 @@
             
             <div className="p-6 text-center border-t border-gray-100 mt-2">
                <div className="text-[10px] text-gray-500 mb-1 flex flex-col items-center justify-center gap-1 opacity-80"><div className="flex items-center gap-1"><Icon.Lock /> <span className="font-semibold">Privacidade e Segurança</span></div><span className="leading-tight max-w-[280px]">Este aplicativo atende e respeita as normas da Política de Privacidade (LGPD).</span></div>
-               <div className="text-[9px] text-gray-300 mt-2 font-mono flex justify-center gap-2 items-center">Versão 4.4 <Icon.Exit /></div>
+               <div className="text-[9px] text-gray-300 mt-2 font-mono flex justify-center gap-2 items-center">Versão 4.5 <Icon.Exit /></div>
             </div>
           </div>
         );
